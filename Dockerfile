@@ -51,7 +51,7 @@ ENV PM_MEDIA_ROOT=/photos \
     PM_LOG_LEVEL=info \
     NODE_ENV=production
 
-EXPOSE 3000
+EXPOSE 3000 8200 1900/udp
 
 VOLUME ["/photos", "/data"]
 

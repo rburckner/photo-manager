@@ -10,14 +10,38 @@ import { PhotoRepository } from '../db/repositories/photo.repository.js';
 import { AlbumRepository } from '../db/repositories/album.repository.js';
 import { photoRoutes } from './routes/photos.js';
 import { albumRoutes } from './routes/albums.js';
+import { startDlnaServer } from './dlna.js';
 
 const config = loadConfig();
 const log = initLogger({ logLevel: config.logLevel });
 
 const app = Fastify({ logger: false });
 
-// CORS for Angular dev server
+// Local network guard — reject non-private IPs unless PM_ALLOW_REMOTE=true
+const allowRemote = process.env['PM_ALLOW_REMOTE'] === 'true';
+
+function isPrivateIp(ip: string): boolean {
+  const addr = ip.replace(/^::ffff:/, ''); // Normalize IPv4-mapped IPv6
+  if (addr === '127.0.0.1' || addr === '::1' || addr === 'localhost') return true;
+  if (addr.startsWith('10.')) return true;
+  if (addr.startsWith('192.168.')) return true;
+  if (addr.startsWith('172.')) {
+    const second = parseInt(addr.split('.')[1] ?? '0', 10);
+    if (second >= 16 && second <= 31) return true;
+  }
+  return false;
+}
+
 app.addHook('onRequest', async (request, reply) => {
+  // Network access control
+  if (!allowRemote) {
+    const clientIp = request.ip;
+    if (!isPrivateIp(clientIp)) {
+      return reply.code(403).send({ error: 'Access denied — local network only' });
+    }
+  }
+
+  // CORS for Angular dev server
   const origin = request.headers.origin;
   if (origin) {
     void reply.header('Access-Control-Allow-Origin', origin);
@@ -67,6 +91,9 @@ async function start(): Promise<void> {
 
   await app.listen({ port: config.serverPort, host: config.serverHost });
   log.info({ port: config.serverPort, host: config.serverHost }, 'Server started');
+
+  // Start DLNA server for TV discovery on local network
+  startDlnaServer(photoRepo, albumRepo, config);
 
   const shutdown = async (): Promise<void> => {
     log.info('Shutting down...');

@@ -2,6 +2,11 @@ import { Routes } from '@angular/router';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'timeline', pathMatch: 'full' },
+  // TV slideshow — fullscreen, no shell
+  {
+    path: 'tv',
+    loadComponent: () => import('./components/tv/tv').then((m) => m.TvComponent),
+  },
   {
     path: '',
     loadComponent: () => import('./components/shell/shell').then((m) => m.ShellComponent),

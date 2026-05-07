@@ -99,6 +99,27 @@ export class PhotoRepository {
     ).all(...params) as PhotoRow[];
   }
 
+  getSlideshow(opts: { limit: number; shuffle: boolean; albumId?: number }): Array<{ id: number; date_taken: string | null; gps_lat: number | null; gps_lng: number | null; folder_path: string; is_video: number }> {
+    const order = opts.shuffle ? 'ORDER BY RANDOM()' : 'ORDER BY COALESCE(date_taken, date_modified) DESC';
+
+    if (opts.albumId) {
+      return this.db.prepare(`
+        SELECT p.id, p.date_taken, p.gps_lat, p.gps_lng, p.folder_path, p.is_video
+        FROM photos p
+        JOIN album_photos ap ON ap.photo_id = p.id
+        WHERE ap.album_id = ? AND p.is_video = 0
+        ${order} LIMIT ?
+      `).all(opts.albumId, opts.limit) as Array<{ id: number; date_taken: string | null; gps_lat: number | null; gps_lng: number | null; folder_path: string; is_video: number }>;
+    }
+
+    return this.db.prepare(`
+      SELECT id, date_taken, gps_lat, gps_lng, folder_path, is_video
+      FROM photos
+      WHERE is_video = 0
+      ${order} LIMIT ?
+    `).all(opts.limit) as Array<{ id: number; date_taken: string | null; gps_lat: number | null; gps_lng: number | null; folder_path: string; is_video: number }>;
+  }
+
   getMapPoints(limit: number): Array<{ id: number; gps_lat: number; gps_lng: number; date_taken: string | null; thumbnail_path: string | null; is_video: number }> {
     return this.db.prepare(`
       SELECT id, gps_lat, gps_lng, date_taken, thumbnail_path, is_video

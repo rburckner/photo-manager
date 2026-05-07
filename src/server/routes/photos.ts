@@ -159,6 +159,16 @@ export async function photoRoutes(
     return photoRepo.getFolders();
   });
 
+  // GET /api/photos/slideshow — photos for TV slideshow
+  app.get<{
+    Querystring: { limit?: string; shuffle?: string; album_id?: string };
+  }>('/api/photos/slideshow', async (request) => {
+    const limit = Math.min(5000, parseInt(request.query.limit ?? '500', 10));
+    const shuffle = request.query.shuffle !== 'false';
+    const albumId = request.query.album_id ? parseInt(request.query.album_id, 10) : undefined;
+    return photoRepo.getSlideshow({ limit, shuffle, albumId });
+  });
+
   // GET /api/photos/map — photos with GPS coordinates for map view
   app.get<{
     Querystring: { limit?: string };

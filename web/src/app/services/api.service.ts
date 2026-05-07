@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import type { Photo, TimelineResponse, CollectionStats, PaginatedResponse, FolderEntry, Album, MapPoint } from '../models/photo.model';
+import type { Photo, TimelineResponse, CollectionStats, PaginatedResponse, FolderEntry, Album, MapPoint, SlideshowPhoto } from '../models/photo.model';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -66,6 +66,13 @@ export class ApiService {
 
   removePhotosFromAlbum(albumId: number, photoIds: number[]): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/albums/${albumId}/photos`, { body: { photo_ids: photoIds } });
+  }
+
+  // Slideshow
+  getSlideshow(shuffle: boolean = true, limit: number = 500, albumId?: number): Observable<SlideshowPhoto[]> {
+    let params = new HttpParams().set('limit', limit.toString()).set('shuffle', shuffle.toString());
+    if (albumId) { params = params.set('album_id', albumId.toString()); }
+    return this.http.get<SlideshowPhoto[]>(`${this.baseUrl}/photos/slideshow`, { params });
   }
 
   // Map & Search
