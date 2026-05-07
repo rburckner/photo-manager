@@ -1,11 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { AlbumRepository } from '../../db/repositories/album.repository.js';
+import type Database from 'better-sqlite3';
+import { logActivity } from './auth.js';
 
 export async function albumRoutes(
   app: FastifyInstance,
-  opts: { albumRepo: AlbumRepository },
+  opts: { albumRepo: AlbumRepository; db?: Database.Database },
 ): Promise<void> {
-  const { albumRepo } = opts;
+  const { albumRepo, db: dbRef } = opts;
 
   // GET /api/albums — list all albums
   app.get('/api/albums', async () => {
@@ -20,7 +22,9 @@ export async function albumRoutes(
     if (!name?.trim()) {
       return reply.code(400).send({ error: 'Name is required' });
     }
-    return albumRepo.create({ name: name.trim(), description: description?.trim() });
+    const album = albumRepo.create({ name: name.trim(), description: description?.trim() });
+    if (dbRef) logActivity(dbRef, 'album_created', name.trim());
+    return album;
   });
 
   // GET /api/albums/:id — get album details

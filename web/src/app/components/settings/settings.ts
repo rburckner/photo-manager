@@ -118,6 +118,18 @@ import type { CollectionStats } from '../../models/photo.model';
         }
       </div>
 
+      <!-- Database Backup -->
+      <div class="setting-section">
+        <h3>Database Backup</h3>
+        <p class="section-desc">
+          Download the SQLite database file. Includes all photo metadata, albums, tags, faces, and settings.
+          Does not include thumbnails or original photos.
+        </p>
+        <div class="action-row">
+          <button class="btn-action" (click)="downloadBackup()">Download Backup</button>
+        </div>
+      </div>
+
       <!-- Inbox -->
       <div class="setting-section">
         <h3>Photo Ingestion</h3>
@@ -335,6 +347,10 @@ export class SettingsComponent implements OnInit {
   toggleSetting(key: string, event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     this.settingsService.set(key, checked ? 'true' : 'false');
+  }
+
+  downloadBackup(): void {
+    this.api.downloadBackup();
   }
 
   toggleDlna(): void {

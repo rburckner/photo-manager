@@ -83,8 +83,8 @@ async function start(): Promise<void> {
   }
 
   // Register API routes
-  await app.register(photoRoutes, { photoRepo, config });
-  await app.register(albumRoutes, { albumRepo });
+  await app.register(photoRoutes, { photoRepo, config, db });
+  await app.register(albumRoutes, { albumRepo, db });
 
   const faceRepo = new FaceRepository(db);
   const tagRepo = new TagRepository(db);

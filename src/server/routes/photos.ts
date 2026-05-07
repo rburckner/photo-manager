@@ -1,8 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { join, extname } from 'node:path';
-import { createReadStream, existsSync } from 'node:fs';
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { copyFileSync } from 'node:fs';
 import { PhotoRepository } from '../../db/repositories/photo.repository.js';
 import type { AppConfig } from '../../shared/types.js';
+import { logActivity } from './auth.js';
 
 interface TimelineGroup {
   date: string;
@@ -24,9 +26,9 @@ interface PhotoSummary {
 
 export async function photoRoutes(
   app: FastifyInstance,
-  opts: { photoRepo: PhotoRepository; config: AppConfig },
+  opts: { photoRepo: PhotoRepository; config: AppConfig; db: import('better-sqlite3').Database },
 ): Promise<void> {
-  const { photoRepo, config } = opts;
+  const { photoRepo, config, db } = opts;
 
   // GET /api/photos — paginated list with sort
   app.get<{
@@ -213,6 +215,7 @@ export async function photoRoutes(
       return reply.code(404).send({ error: 'Photo not found' });
     }
     photoRepo.removeFromIndex(id);
+    logActivity(db, 'photo_removed_from_index', photo.file_path);
     return { ok: true, removed_path: photo.file_path };
   });
 
@@ -262,6 +265,7 @@ export async function photoRoutes(
       return reply.code(400).send({ error: 'photo_ids and date required' });
     }
     photoRepo.bulkSetDate(photo_ids, date);
+    logActivity(db, 'bulk_set_date', `${photo_ids.length} photos → ${date.slice(0, 10)}`);
     return { ok: true, count: photo_ids.length };
   });
 
@@ -278,6 +282,7 @@ export async function photoRoutes(
       return reply.code(400).send({ error: 'photo_ids array is required' });
     }
     photoRepo.bulkSetFavorite(photo_ids, value);
+    logActivity(db, value ? 'bulk_favorite' : 'bulk_unfavorite', `${photo_ids.length} photos`);
     return { ok: true, count: photo_ids.length };
   });
 
@@ -418,6 +423,63 @@ export async function photoRoutes(
       stmt.run(key, String(value));
     }
     return { ok: true };
+  });
+
+  // GET /api/backup — download SQLite database backup
+  app.get('/api/backup', async (_request, reply) => {
+    const dbPath = config.dbPath;
+    if (!existsSync(dbPath)) {
+      return reply.code(404).send({ error: 'Database not found' });
+    }
+    // Copy to temp file to avoid locking issues
+    const backupPath = `${dbPath}.backup`;
+    copyFileSync(dbPath, backupPath);
+    const stat = statSync(backupPath);
+    logActivity(db, 'db_backup_downloaded');
+    return reply
+      .header('Content-Type', 'application/octet-stream')
+      .header('Content-Disposition', `attachment; filename="photos-backup-${new Date().toISOString().slice(0, 10)}.db"`)
+      .header('Content-Length', stat.size)
+      .send(createReadStream(backupPath));
+  });
+
+  // GET /api/photos/:id/video-preview — serve a short clip for hover preview
+  app.get<{ Params: { id: string } }>('/api/photos/:id/video-preview', async (request, reply) => {
+    const id = parseInt(request.params.id, 10);
+    const photo = photoRepo.findById(id);
+    if (!photo || photo.is_video !== 1) {
+      return reply.code(404).send({ error: 'Video not found' });
+    }
+
+    const filePath = join(config.mediaRoot, photo.file_path);
+    if (!existsSync(filePath)) {
+      return reply.code(404).send({ error: 'File not found' });
+    }
+
+    // Serve the first 5 seconds via range request support
+    const stat = statSync(filePath);
+    const range = request.headers.range;
+
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0] ?? '0', 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : Math.min(start + 2 * 1024 * 1024, stat.size - 1); // 2MB chunks
+      const chunkSize = end - start + 1;
+
+      return reply
+        .code(206)
+        .header('Content-Range', `bytes ${start}-${end}/${stat.size}`)
+        .header('Accept-Ranges', 'bytes')
+        .header('Content-Length', chunkSize)
+        .header('Content-Type', photo.mime_type)
+        .send(createReadStream(filePath, { start, end }));
+    }
+
+    return reply
+      .type(photo.mime_type)
+      .header('Content-Length', stat.size)
+      .header('Accept-Ranges', 'bytes')
+      .send(createReadStream(filePath));
   });
 
   // GET /api/stats — collection statistics

@@ -267,6 +267,15 @@ export class ApiService {
     return `${this.baseUrl}/photos/${id}/file`;
   }
 
+  // DB Backup
+  downloadBackup(): void {
+    window.open(`${this.baseUrl}/backup`, '_blank');
+  }
+
+  getVideoPreviewUrl(id: number): string {
+    return `${this.baseUrl}/photos/${id}/video-preview`;
+  }
+
   // Activity log
   getActivityLog(): Observable<Array<{ id: number; action: string; details: string; timestamp: string }>> {
     return this.http.get<Array<{ id: number; action: string; details: string; timestamp: string }>>(`${this.baseUrl}/activity`);
