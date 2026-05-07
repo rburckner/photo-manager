@@ -2,6 +2,7 @@ import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { SelectionService } from '../../services/selection.service';
 import { LightboxComponent } from '../lightbox/lightbox';
 import type { Album, Photo } from '../../models/photo.model';
 
@@ -68,7 +69,15 @@ import type { Album, Photo } from '../../models/photo.model';
 
         <div class="photo-grid" (scroll)="onAlbumScroll($event)">
           @for (photo of albumPhotos; track photo.id) {
-            <div class="photo-card" (click)="openPhoto(photo)">
+            <div
+              class="photo-card"
+              [class.selectable]="selection.isSelecting"
+              [class.selected]="selection.isSelected(photo.id)"
+              (click)="onPhotoClick(photo, $event)"
+            >
+              @if (selection.isSelecting) {
+                <div class="select-check">&#10003;</div>
+              }
               <img
                 [src]="api.getThumbnailUrl(photo.id)"
                 [alt]="photo.file_name"
@@ -410,9 +419,12 @@ export class AlbumsComponent implements OnInit {
   dialogName = '';
   dialogDescription = '';
 
+  private lastClickedId: number | null = null;
+
   constructor(
     public readonly api: ApiService,
     private readonly cdr: ChangeDetectorRef,
+    public readonly selection: SelectionService,
   ) {}
 
   ngOnInit(): void {
@@ -510,6 +522,31 @@ export class AlbumsComponent implements OnInit {
         this.loadAlbums();
       },
     });
+  }
+
+  onPhotoClick(photo: Photo, event: MouseEvent): void {
+    if (event.ctrlKey || event.metaKey) {
+      this.selection.toggle(photo.id);
+      this.lastClickedId = photo.id;
+      return;
+    }
+    if (event.shiftKey && this.lastClickedId !== null && this.selection.isSelecting) {
+      const startIdx = this.albumPhotos.findIndex((p) => p.id === this.lastClickedId);
+      const endIdx = this.albumPhotos.findIndex((p) => p.id === photo.id);
+      if (startIdx >= 0 && endIdx >= 0) {
+        const from = Math.min(startIdx, endIdx);
+        const to = Math.max(startIdx, endIdx);
+        const rangeIds = this.albumPhotos.slice(from, to + 1).map((p) => p.id);
+        this.selection.selectAll(rangeIds);
+      }
+      return;
+    }
+    if (this.selection.isSelecting) {
+      this.selection.toggle(photo.id);
+      this.lastClickedId = photo.id;
+      return;
+    }
+    this.openPhoto(photo);
   }
 
   openPhoto(photo: Photo): void {

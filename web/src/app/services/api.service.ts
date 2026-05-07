@@ -30,12 +30,18 @@ export class ApiService {
     return this.http.get<FolderEntry[]>(`${this.baseUrl}/photos/folders`);
   }
 
-  getPhotos(page: number = 1, limit: number = 50, folder?: string): Observable<PaginatedResponse<Photo>> {
+  getPhotos(page: number = 1, limit: number = 50, folder?: string, sort?: string, order?: 'asc' | 'desc'): Observable<PaginatedResponse<Photo>> {
     let params = new HttpParams()
       .set('page', page.toString())
       .set('limit', limit.toString());
     if (folder) {
       params = params.set('folder', folder);
+    }
+    if (sort) {
+      params = params.set('sort', sort);
+    }
+    if (order) {
+      params = params.set('order', order);
     }
     return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/photos`, { params });
   }
@@ -259,5 +265,32 @@ export class ApiService {
 
   getFileUrl(id: number): string {
     return `${this.baseUrl}/photos/${id}/file`;
+  }
+
+  // Activity log
+  getActivityLog(): Observable<Array<{ id: number; action: string; details: string; timestamp: string }>> {
+    return this.http.get<Array<{ id: number; action: string; details: string; timestamp: string }>>(`${this.baseUrl}/activity`);
+  }
+
+  // Device pairing & auth
+  getDevices(): Observable<Array<{ id: number; name: string; last_seen: string }>> {
+    return this.http.get<Array<{ id: number; name: string; last_seen: string }>>(`${this.baseUrl}/auth/devices`);
+  }
+
+  generatePairingCode(): Observable<{ code: string }> {
+    return this.http.post<{ code: string }>(`${this.baseUrl}/auth/generate-code`, {});
+  }
+
+  pairDevice(code: string, name: string): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/auth/pair`, { code, name });
+  }
+
+  revokeDevice(id: number): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/auth/devices/${id}`);
+  }
+
+  // People merge
+  mergePeople(keepId: number, mergeId: number): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/people/merge`, { keep_id: keepId, merge_id: mergeId });
   }
 }

@@ -230,6 +230,115 @@ export function clusterFaces(
   log.info({ clustersCreated, unassignedProcessed: unassigned.length }, 'Face clustering complete');
 }
 
+/**
+ * Run face detection in a worker thread — non-blocking alternative to runFaceScan.
+ */
+export async function runFaceScanWorker(
+  photoRepo: PhotoRepository,
+  faceRepo: FaceRepository,
+  config: AppConfig,
+  batchSize: number = 50,
+): Promise<{ scanned: number; facesFound: number; cancelled: boolean }> {
+  const log = getLogger();
+  const { Worker } = await import('node:worker_threads');
+
+  if (faceScanRunning) {
+    return { scanned: 0, facesFound: 0, cancelled: false };
+  }
+
+  faceScanRunning = true;
+  faceScanCancelled = false;
+
+  const photoIds = faceRepo.getUnscannedPhotoIds(batchSize);
+  if (photoIds.length === 0) {
+    faceScanRunning = false;
+    return { scanned: 0, facesFound: 0, cancelled: false };
+  }
+
+  const modelsDir = join(config.thumbnailDir, '..', 'face-models');
+  const workerPath = join(import.meta.dirname, 'face-worker.js');
+
+  return new Promise((resolve) => {
+    let scanned = 0;
+    let facesFound = 0;
+    let currentIdx = 0;
+
+    const worker = new Worker(workerPath, {
+      workerData: {
+        modelsDir,
+        thumbnailDir: config.thumbnailDir,
+        mediaRoot: config.mediaRoot,
+        dbPath: config.dbPath,
+      },
+    });
+
+    function sendNext(): void {
+      if (faceScanCancelled || currentIdx >= photoIds.length) {
+        worker.terminate().catch(() => {});
+        faceScanRunning = false;
+        const cancelled = faceScanCancelled;
+        faceScanCancelled = false;
+        log.info({ scanned, facesFound, cancelled }, 'Worker face scan complete');
+        resolve({ scanned, facesFound, cancelled });
+        return;
+      }
+
+      const id = photoIds[currentIdx]!;
+      const photo = photoRepo.findById(id);
+      if (!photo || photo.is_video === 1) {
+        faceRepo.markPhotoScanned(id, 0);
+        currentIdx++;
+        scanned++;
+        sendNext();
+        return;
+      }
+
+      worker.postMessage({
+        type: 'detect',
+        photoId: id,
+        thumbnailPath: photo.thumbnail_path,
+        filePath: photo.file_path,
+      });
+    }
+
+    worker.on('message', (msg: { type: string; photoId?: number; faces?: Array<{ embedding: number[]; x: number; y: number; width: number; height: number; confidence: number }> }) => {
+      if (msg.type === 'ready') {
+        sendNext();
+      } else if (msg.type === 'result' && msg.photoId !== undefined) {
+        const faces = msg.faces ?? [];
+        for (const face of faces) {
+          faceRepo.insertFace({
+            photo_id: msg.photoId,
+            person_id: null,
+            embedding: Buffer.from(new Float32Array(face.embedding).buffer),
+            x: face.x,
+            y: face.y,
+            width: face.width,
+            height: face.height,
+            confidence: face.confidence,
+          });
+        }
+        faceRepo.markPhotoScanned(msg.photoId, faces.length);
+        facesFound += faces.length;
+        scanned++;
+        currentIdx++;
+        sendNext();
+      } else if (msg.type === 'error') {
+        log.warn('Face worker error — falling back to main thread');
+        worker.terminate().catch(() => {});
+        faceScanRunning = false;
+        resolve({ scanned, facesFound, cancelled: false });
+      }
+    });
+
+    worker.on('error', (err) => {
+      log.warn({ error: err.message }, 'Face worker crashed');
+      faceScanRunning = false;
+      resolve({ scanned, facesFound, cancelled: false });
+    });
+  });
+}
+
 function euclideanDistance(a: Float32Array, b: Float32Array): number {
   let sum = 0;
   for (let i = 0; i < a.length; i++) {

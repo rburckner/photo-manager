@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
+import { SelectionService } from '../../services/selection.service';
 import { LightboxComponent } from '../lightbox/lightbox';
 import type { FolderTreeNode, FolderEntry, Photo } from '../../models/photo.model';
 
@@ -36,8 +37,13 @@ import type { FolderTreeNode, FolderEntry, Photo } from '../../models/photo.mode
               <div
                 class="photo-card"
                 [class.video]="photo.is_video === 1"
-                (click)="openPhoto(photo)"
+                [class.selectable]="selection.isSelecting"
+                [class.selected]="selection.isSelected(photo.id)"
+                (click)="onPhotoClick(photo, $event)"
               >
+                @if (selection.isSelecting) {
+                  <div class="select-check">&#10003;</div>
+                }
                 <img
                   [src]="getThumbnailUrl(photo.id)"
                   [alt]="photo.file_name"
@@ -287,9 +293,12 @@ export class FoldersComponent implements OnInit, OnDestroy {
 
   selectedPhoto: Photo | null = null;
 
+  private lastClickedId: number | null = null;
+
   constructor(
     private readonly api: ApiService,
     private readonly cdr: ChangeDetectorRef,
+    public readonly selection: SelectionService,
   ) {}
 
   ngOnInit(): void {
@@ -421,6 +430,31 @@ export class FoldersComponent implements OnInit, OnDestroy {
 
   getDepth(path: string): number {
     return path.split('/').length - 1;
+  }
+
+  onPhotoClick(photo: Photo, event: MouseEvent): void {
+    if (event.ctrlKey || event.metaKey) {
+      this.selection.toggle(photo.id);
+      this.lastClickedId = photo.id;
+      return;
+    }
+    if (event.shiftKey && this.lastClickedId !== null && this.selection.isSelecting) {
+      const startIdx = this.photos.findIndex((p) => p.id === this.lastClickedId);
+      const endIdx = this.photos.findIndex((p) => p.id === photo.id);
+      if (startIdx >= 0 && endIdx >= 0) {
+        const from = Math.min(startIdx, endIdx);
+        const to = Math.max(startIdx, endIdx);
+        const rangeIds = this.photos.slice(from, to + 1).map((p) => p.id);
+        this.selection.selectAll(rangeIds);
+      }
+      return;
+    }
+    if (this.selection.isSelecting) {
+      this.selection.toggle(photo.id);
+      this.lastClickedId = photo.id;
+      return;
+    }
+    this.openPhoto(photo);
   }
 
   openPhoto(photo: Photo): void {

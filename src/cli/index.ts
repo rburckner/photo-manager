@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import { createScanCommand } from './commands/scan.js';
 import { createImportTakeoutCommand } from './commands/import-takeout.js';
+import { createPairCommand } from './commands/pair.js';
 import { getDb, closeDb } from '../db/connection.js';
 import { runMigrations } from '../db/migrate.js';
 import { PhotoRepository } from '../db/repositories/photo.repository.js';
@@ -21,6 +22,9 @@ program.addCommand(createScanCommand());
 
 // ── import-takeout command ──
 program.addCommand(createImportTakeoutCommand());
+
+// ── pair command ──
+program.addCommand(createPairCommand());
 
 // ── migrate command ──
 program

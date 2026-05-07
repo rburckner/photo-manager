@@ -124,6 +124,15 @@ export class FaceRepository {
     run(faceIds);
   }
 
+  mergePeople(keepId: number, mergeId: number): void {
+    // Move all faces from mergeId to keepId
+    this.db.prepare('UPDATE faces SET person_id = ? WHERE person_id = ?').run(keepId, mergeId);
+    // Delete the merged person
+    this.db.prepare('DELETE FROM people WHERE id = ?').run(mergeId);
+    // Update photo count
+    this.updatePersonPhotoCount(keepId);
+  }
+
   // ── Scan tracking ──
 
   isPhotoScanned(photoId: number): boolean {

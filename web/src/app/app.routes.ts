@@ -48,6 +48,10 @@ export const routes: Routes = [
         loadComponent: () => import('./components/tags/tags').then((m) => m.TagsComponent),
       },
       {
+        path: 'activity',
+        loadComponent: () => import('./components/activity/activity').then((m) => m.ActivityComponent),
+      },
+      {
         path: 'help',
         loadComponent: () => import('./components/help/help').then((m) => m.HelpComponent),
       },

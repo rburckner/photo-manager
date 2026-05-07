@@ -28,16 +28,18 @@ export async function photoRoutes(
 ): Promise<void> {
   const { photoRepo, config } = opts;
 
-  // GET /api/photos — paginated list
+  // GET /api/photos — paginated list with sort
   app.get<{
-    Querystring: { page?: string; limit?: string; folder?: string };
+    Querystring: { page?: string; limit?: string; folder?: string; sort?: string; order?: string };
   }>('/api/photos', async (request) => {
     const page = Math.max(1, parseInt(request.query.page ?? '1', 10));
     const limit = Math.min(200, Math.max(1, parseInt(request.query.limit ?? '50', 10)));
     const offset = (page - 1) * limit;
     const folder = request.query.folder;
 
-    const { photos, total } = photoRepo.list({ limit, offset, folder });
+    const sort = request.query.sort;
+    const order = request.query.order;
+    const { photos, total } = photoRepo.list({ limit, offset, folder, sort, order });
 
     return {
       photos,

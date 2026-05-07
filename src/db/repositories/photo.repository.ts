@@ -60,10 +60,23 @@ export class PhotoRepository {
     return this.db.prepare('SELECT * FROM photos WHERE id = ?').get(id) as PhotoRow | undefined;
   }
 
-  list(opts: { limit: number; offset: number; folder?: string }): { photos: PhotoRow[]; total: number } {
+  private buildOrderBy(sort?: string, order?: string): string {
+    const dir = order === 'asc' ? 'ASC' : 'DESC';
+    switch (sort) {
+      case 'name': return `ORDER BY file_name ${dir}`;
+      case 'size': return `ORDER BY file_size ${dir}`;
+      case 'camera': return `ORDER BY camera_model ${dir}, COALESCE(date_taken, date_modified) DESC`;
+      case 'date':
+      default: return `ORDER BY COALESCE(date_taken, date_modified) ${dir}`;
+    }
+  }
+
+  list(opts: { limit: number; offset: number; folder?: string; sort?: string; order?: string }): { photos: PhotoRow[]; total: number } {
+    const orderBy = this.buildOrderBy(opts.sort, opts.order);
+
     if (opts.folder) {
       const photos = this.db.prepare(
-        'SELECT * FROM photos WHERE folder_path = ? ORDER BY date_taken DESC, date_modified DESC LIMIT ? OFFSET ?',
+        `SELECT * FROM photos WHERE folder_path = ? ${orderBy} LIMIT ? OFFSET ?`,
       ).all(opts.folder, opts.limit, opts.offset) as PhotoRow[];
       const total = (this.db.prepare(
         'SELECT count(*) as count FROM photos WHERE folder_path = ?',
@@ -72,7 +85,7 @@ export class PhotoRepository {
     }
 
     const photos = this.db.prepare(
-      'SELECT * FROM photos ORDER BY date_taken DESC, date_modified DESC LIMIT ? OFFSET ?',
+      `SELECT * FROM photos ${orderBy} LIMIT ? OFFSET ?`,
     ).all(opts.limit, opts.offset) as PhotoRow[];
     const total = this.countAll();
     return { photos, total };

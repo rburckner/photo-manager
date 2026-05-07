@@ -88,11 +88,11 @@ export async function faceRoutes(
     return faceRepo.getFacesByPhoto(photoId);
   });
 
-  // POST /api/faces/scan — trigger face detection on unscanned photos
+  // POST /api/faces/scan — trigger face detection in a worker thread
   app.post<{ Body: { batch_size?: number } }>('/api/faces/scan', async (request) => {
     const batchSize = request.body?.batch_size ?? 50;
-    const { runFaceScan } = await import('../../scanner/faces.js');
-    const result = await runFaceScan(photoRepo, faceRepo, config, batchSize);
+    const { runFaceScanWorker } = await import('../../scanner/faces.js');
+    const result = await runFaceScanWorker(photoRepo, faceRepo, config, batchSize);
     return result;
   });
 
@@ -114,6 +114,21 @@ export async function faceRoutes(
     const { clusterFaces } = await import('../../scanner/faces.js');
     clusterFaces(faceRepo);
     return { ok: true };
+  });
+
+  // POST /api/people/merge — merge two people into one
+  app.post<{ Body: { keep_id: number; merge_id: number } }>('/api/people/merge', async (request, reply) => {
+    const { keep_id, merge_id } = request.body;
+    if (!keep_id || !merge_id || keep_id === merge_id) {
+      return reply.code(400).send({ error: 'keep_id and merge_id required and must differ' });
+    }
+    const keep = faceRepo.getPerson(keep_id);
+    const merge = faceRepo.getPerson(merge_id);
+    if (!keep || !merge) {
+      return reply.code(404).send({ error: 'Person not found' });
+    }
+    faceRepo.mergePeople(keep_id, merge_id);
+    return { ok: true, kept: keep_id, merged: merge_id };
   });
 
   // GET /api/faces/:faceId/crop — serve cropped face from thumbnail

@@ -15,6 +15,7 @@ import { tagRoutes } from './routes/tags.js';
 import { shareRoutes } from './routes/shares.js';
 import { FaceRepository } from '../db/repositories/face.repository.js';
 import { TagRepository } from '../db/repositories/tag.repository.js';
+import { authRoutes, createAuthMiddleware } from './routes/auth.js';
 import { startDlnaServer } from './dlna.js';
 import { startInboxWatcher } from '../ingestion/index.js';
 import { startCronReindex } from './cron.js';
@@ -91,6 +92,13 @@ async function start(): Promise<void> {
   await app.register(faceRoutes, { faceRepo, photoRepo, config });
   await app.register(tagRoutes, { tagRepo, photoRepo });
   await app.register(shareRoutes, { db, photoRepo, albumRepo, config });
+  await app.register(authRoutes, { db });
+
+  // Optional auth middleware (enabled via Settings → auth_required=true)
+  const authMiddleware = createAuthMiddleware(db);
+  app.addHook('onRequest', async (request, reply) => {
+    authMiddleware(request, reply);
+  });
 
   // Serve Angular build if it exists (production mode)
   const webDistPath = join(import.meta.dirname, '../../web/dist/photo-manager/browser');

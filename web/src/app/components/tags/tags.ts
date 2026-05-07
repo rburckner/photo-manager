@@ -2,6 +2,7 @@ import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { SelectionService } from '../../services/selection.service';
 import { LightboxComponent } from '../lightbox/lightbox';
 import type { Photo } from '../../models/photo.model';
 
@@ -58,7 +59,15 @@ interface Tag {
             </div>
             <div class="photo-grid" (scroll)="onScroll($event)">
               @for (photo of tagPhotos; track photo.id) {
-                <div class="photo-card" (click)="openPhoto(photo)">
+                <div
+                  class="photo-card"
+                  [class.selectable]="selection.isSelecting"
+                  [class.selected]="selection.isSelected(photo.id)"
+                  (click)="onPhotoClick(photo, $event)"
+                >
+                  @if (selection.isSelecting) {
+                    <div class="select-check">&#10003;</div>
+                  }
                   <img [src]="api.getThumbnailUrl(photo.id)" loading="lazy" (error)="onImageError($event)" />
                 </div>
               }
@@ -164,7 +173,9 @@ export class TagsComponent implements OnInit {
   hasMore = true;
   selectedPhoto: Photo | null = null;
 
-  constructor(public readonly api: ApiService, private readonly cdr: ChangeDetectorRef) {}
+  private lastClickedId: number | null = null;
+
+  constructor(public readonly api: ApiService, private readonly cdr: ChangeDetectorRef, public readonly selection: SelectionService) {}
 
   ngOnInit(): void { this.loadTags(); }
 
@@ -211,6 +222,31 @@ export class TagsComponent implements OnInit {
   onScroll(e: Event): void {
     const el = e.target as HTMLElement;
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 500) this.loadTagPhotos();
+  }
+
+  onPhotoClick(photo: Photo, event: MouseEvent): void {
+    if (event.ctrlKey || event.metaKey) {
+      this.selection.toggle(photo.id);
+      this.lastClickedId = photo.id;
+      return;
+    }
+    if (event.shiftKey && this.lastClickedId !== null && this.selection.isSelecting) {
+      const startIdx = this.tagPhotos.findIndex((p) => p.id === this.lastClickedId);
+      const endIdx = this.tagPhotos.findIndex((p) => p.id === photo.id);
+      if (startIdx >= 0 && endIdx >= 0) {
+        const from = Math.min(startIdx, endIdx);
+        const to = Math.max(startIdx, endIdx);
+        const rangeIds = this.tagPhotos.slice(from, to + 1).map((p) => p.id);
+        this.selection.selectAll(rangeIds);
+      }
+      return;
+    }
+    if (this.selection.isSelecting) {
+      this.selection.toggle(photo.id);
+      this.lastClickedId = photo.id;
+      return;
+    }
+    this.openPhoto(photo);
   }
 
   openPhoto(p: Photo): void { this.selectedPhoto = p; }

@@ -81,6 +81,21 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
                 (click)="setStatus(selectedPersonSummary.status === 'hidden' ? 'unreviewed' : 'hidden')"
               >Hide</button>
             </div>
+            <div class="merge-section">
+              <button class="btn-status" (click)="showMergeDropdown = !showMergeDropdown">Merge with...</button>
+              @if (showMergeDropdown) {
+                <div class="merge-dropdown">
+                  @for (person of getMergeTargets(); track person.id) {
+                    <div class="merge-option" (click)="mergePerson(person)">
+                      {{ person.name ?? 'Unknown' }} ({{ person.photo_count }})
+                    </div>
+                  }
+                  @if (getMergeTargets().length === 0) {
+                    <div class="merge-option disabled">No other people to merge</div>
+                  }
+                </div>
+              }
+            </div>
           </div>
 
           <div class="person-photos" (scroll)="onScroll($event)">
@@ -304,6 +319,35 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
       padding: 20px;
       color: #666;
     }
+
+    .merge-section {
+      position: relative;
+      margin-left: 8px;
+    }
+
+    .merge-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 6px;
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 100;
+      min-width: 200px;
+      margin-top: 4px;
+    }
+
+    .merge-option {
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      color: #ccc;
+      cursor: pointer;
+
+      &:hover { background: #333; }
+      &.disabled { color: #666; cursor: default; &:hover { background: transparent; } }
+    }
   `],
 })
 export class PeopleComponent implements OnInit {
@@ -319,6 +363,7 @@ export class PeopleComponent implements OnInit {
   hasMorePhotos = true;
 
   selectedPhoto: Photo | null = null;
+  showMergeDropdown = false;
 
   constructor(
     public readonly api: ApiService,
@@ -401,6 +446,25 @@ export class PeopleComponent implements OnInit {
 
   getFaceCropUrl(faceId: number): string {
     return `/api/faces/${faceId}/crop`;
+  }
+
+  getMergeTargets(): PersonSummary[] {
+    if (!this.selectedPersonSummary) return [];
+    return this.people.filter((p) => p.id !== this.selectedPersonSummary!.id);
+  }
+
+  mergePerson(target: PersonSummary): void {
+    if (!this.selectedPersonSummary) return;
+    if (!confirm(`Merge "${this.selectedPersonSummary.name ?? 'Unknown'}" into "${target.name ?? 'Unknown'}"? This cannot be undone.`)) return;
+
+    this.api.mergePeople(target.id, this.selectedPersonSummary.id).subscribe({
+      next: () => {
+        this.showMergeDropdown = false;
+        this.selectedPersonSummary = null;
+        this.personPhotos = [];
+        this.loadPeople();
+      },
+    });
   }
 
   openPhoto(photo: Photo): void { this.selectedPhoto = photo; }
