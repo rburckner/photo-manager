@@ -7,6 +7,77 @@ import { getLogger } from '../shared/logger.js';
 
 const DEFAULT_CRON_HOUR = 2; // 2 AM
 
+// ── Cron state (module-level for API access) ──
+let cronEnabled = true;
+let cronRunning = false;
+let cronNextRun: string | null = null;
+let cronLastRun: string | null = null;
+let cronLastResult: string | null = null;
+let cronHourSetting = DEFAULT_CRON_HOUR;
+let cronTimer: ReturnType<typeof setTimeout> | null = null;
+let cronRunReindex: (() => Promise<void>) | null = null;
+
+export function getCronStatus(): {
+  enabled: boolean;
+  running: boolean;
+  cronHour: number;
+  nextRun: string | null;
+  lastRun: string | null;
+  lastResult: string | null;
+} {
+  return { enabled: cronEnabled, running: cronRunning, cronHour: cronHourSetting, nextRun: cronNextRun, lastRun: cronLastRun, lastResult: cronLastResult };
+}
+
+export function setCronEnabled(enabled: boolean): void {
+  cronEnabled = enabled;
+  const log = getLogger();
+  if (!enabled && cronTimer) {
+    clearTimeout(cronTimer);
+    cronTimer = null;
+    cronNextRun = null;
+    log.info('Cron disabled');
+  } else if (enabled) {
+    scheduleNextCron();
+    log.info('Cron enabled');
+  }
+}
+
+export function setCronHour(hour: number): void {
+  cronHourSetting = Math.max(0, Math.min(23, hour));
+  if (cronEnabled) {
+    if (cronTimer) clearTimeout(cronTimer);
+    scheduleNextCron();
+  }
+}
+
+export function triggerCronNow(): void {
+  if (cronRunning) return;
+  if (cronRunReindex) void cronRunReindex();
+}
+
+function msUntilNextRun(): number {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(cronHourSetting, 0, 0, 0);
+  if (next <= now) {
+    next.setDate(next.getDate() + 1);
+  }
+  return next.getTime() - now.getTime();
+}
+
+function scheduleNextCron(): void {
+  const delay = msUntilNextRun();
+  const nextRun = new Date(Date.now() + delay);
+  cronNextRun = nextRun.toISOString();
+  const log = getLogger();
+  log.info({ nextRun: cronNextRun, cronHour: cronHourSetting }, 'Next re-index scheduled');
+
+  cronTimer = setTimeout(() => {
+    if (cronRunReindex) void cronRunReindex();
+    if (cronEnabled) scheduleNextCron();
+  }, delay);
+}
+
 /**
  * Starts a daily re-index timer. Runs an incremental scan
  * at the configured hour (default 2 AM).
@@ -18,30 +89,12 @@ export function startCronReindex(
   faceRepo?: FaceRepository,
 ): void {
   const log = getLogger();
-  const cronHour = parseInt(process.env['PM_CRON_HOUR'] ?? String(DEFAULT_CRON_HOUR), 10);
-
-  function msUntilNextRun(): number {
-    const now = new Date();
-    const next = new Date(now);
-    next.setHours(cronHour, 0, 0, 0);
-    if (next <= now) {
-      next.setDate(next.getDate() + 1);
-    }
-    return next.getTime() - now.getTime();
-  }
-
-  function scheduleNext(): void {
-    const delay = msUntilNextRun();
-    const nextRun = new Date(Date.now() + delay);
-    log.info({ nextRun: nextRun.toISOString(), cronHour }, 'Next re-index scheduled');
-
-    setTimeout(() => {
-      void runReindex();
-      scheduleNext();
-    }, delay);
-  }
+  cronHourSetting = parseInt(process.env['PM_CRON_HOUR'] ?? String(DEFAULT_CRON_HOUR), 10);
 
   async function runReindex(): Promise<void> {
+    cronRunning = true;
+    cronLastRun = new Date().toISOString();
+    cronLastResult = null;
     log.info('Starting daily re-index');
 
     try {
@@ -127,11 +180,15 @@ export function startCronReindex(
       } catch (embErr) {
         log.warn({ error: embErr instanceof Error ? embErr.message : String(embErr) }, 'Embedding scan after re-index failed');
       }
+      cronLastResult = 'Completed successfully';
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       log.error({ error }, 'Daily re-index failed');
+      cronLastResult = `Failed: ${error}`;
     }
+    cronRunning = false;
   }
 
-  scheduleNext();
+  cronRunReindex = runReindex;
+  scheduleNextCron();
 }

@@ -568,6 +568,35 @@ export async function photoRoutes(
     return { ok: true, running: false };
   });
 
+  // ── Cron management ──
+
+  // GET /api/cron/status
+  app.get('/api/cron/status', async () => {
+    const { getCronStatus } = await import('../cron.js');
+    return getCronStatus();
+  });
+
+  // POST /api/cron/enable
+  app.post<{ Body: { enabled: boolean } }>('/api/cron/enable', async (request) => {
+    const { setCronEnabled } = await import('../cron.js');
+    setCronEnabled(request.body.enabled);
+    return { ok: true };
+  });
+
+  // POST /api/cron/hour
+  app.post<{ Body: { hour: number } }>('/api/cron/hour', async (request) => {
+    const { setCronHour } = await import('../cron.js');
+    setCronHour(request.body.hour);
+    return { ok: true };
+  });
+
+  // POST /api/cron/trigger — run now
+  app.post('/api/cron/trigger', async () => {
+    const { triggerCronNow } = await import('../cron.js');
+    triggerCronNow();
+    return { ok: true };
+  });
+
   // GET /api/settings — app settings
   app.get('/api/settings', async () => {
     const db = photoRepo['db'] as import('better-sqlite3').Database;

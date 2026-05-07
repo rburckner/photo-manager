@@ -329,6 +329,23 @@ export class ApiService {
     return `${this.baseUrl}/photos/${id}/video-preview`;
   }
 
+  // Cron management
+  getCronStatus(): Observable<{ enabled: boolean; running: boolean; cronHour: number; nextRun: string | null; lastRun: string | null; lastResult: string | null }> {
+    return this.http.get<{ enabled: boolean; running: boolean; cronHour: number; nextRun: string | null; lastRun: string | null; lastResult: string | null }>(`${this.baseUrl}/cron/status`);
+  }
+
+  setCronEnabled(enabled: boolean): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/cron/enable`, { enabled });
+  }
+
+  setCronHour(hour: number): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/cron/hour`, { hour });
+  }
+
+  triggerCron(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/cron/trigger`, {});
+  }
+
   // Activity log
   getActivityLog(): Observable<Array<{ id: number; action: string; details: string; timestamp: string }>> {
     return this.http.get<Array<{ id: number; action: string; details: string; timestamp: string }>>(`${this.baseUrl}/activity`);

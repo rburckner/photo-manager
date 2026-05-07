@@ -142,7 +142,49 @@ import type { CollectionStats } from '../../models/photo.model';
         </div>
       </div>
 
-      <!-- ═══════ TOOLS ═══════ -->
+      <!-- ═══════ SCHEDULED JOBS ═══════ -->
+      <div class="section-group">
+        <h3 class="group-title">Scheduled Jobs</h3>
+
+        <div class="job-card">
+          <div class="job-header">
+            <span class="job-icon">&#128339;</span>
+            <span class="job-name">Daily Re-index</span>
+            @if (cronStatus?.running) { <span class="job-badge running">Running</span> }
+            @if (cronStatus && !cronStatus.enabled) { <span class="job-badge" style="background:#3a1a1a;border:1px solid #5a2a2a;color:#e88">Disabled</span> }
+          </div>
+          @if (cronStatus) {
+            <div class="job-progress">
+              Runs at {{ cronStatus.cronHour }}:00 daily — re-indexes photos, generates thumbnails, detects faces, creates embeddings
+            </div>
+            @if (cronStatus.nextRun) {
+              <div class="job-desc">Next run: {{ cronStatus.nextRun | date:'medium' }}</div>
+            }
+            @if (cronStatus.lastRun) {
+              <div class="job-desc">Last run: {{ cronStatus.lastRun | date:'medium' }}
+                @if (cronStatus.lastResult) { — {{ cronStatus.lastResult }} }
+              </div>
+            }
+            <div class="job-actions">
+              <button class="btn-job" (click)="toggleCron()">
+                {{ cronStatus.enabled ? 'Disable' : 'Enable' }}
+              </button>
+              <button class="btn-job" (click)="triggerCronNow()" [disabled]="cronStatus.running">
+                Run Now
+              </button>
+              <label class="cron-hour">
+                Hour:
+                <select [value]="cronStatus.cronHour" (change)="setCronHour($event)">
+                  @for (h of hours; track h) {
+                    <option [value]="h">{{ h }}:00</option>
+                  }
+                </select>
+              </label>
+            </div>
+          }
+        </div>
+      </div>
+
       <!-- ═══════ TOOLS ═══════ -->
       <div class="section-group">
         <h3 class="group-title">Tools</h3>
@@ -473,6 +515,25 @@ import type { CollectionStats } from '../../models/photo.model';
       &.btn-cancel { color: #e88; border-color: #844; &:hover { background: #3a1a1a; } }
     }
 
+    .cron-hour {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: #aaa;
+      margin-left: 8px;
+
+      select {
+        background: #222;
+        border: 1px solid #444;
+        color: #ddd;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        cursor: pointer;
+      }
+    }
+
     .setting-section {
       background: #1e1e1e;
       border: 1px solid #333;
@@ -572,6 +633,8 @@ export class SettingsComponent implements OnInit {
   scanStatus: { status: string; processed_files?: number; total_files?: number } | null = null;
   cleanupItems: Array<{ id: number; file_path: string; reason: string }> = [];
 
+  cronStatus: { enabled: boolean; running: boolean; cronHour: number; nextRun: string | null; lastRun: string | null; lastResult: string | null } | null = null;
+  hours = Array.from({ length: 24 }, (_, i) => i);
   settings: Record<string, string> = {};
   dlnaRunning = false;
   tvAlbumId: number | null = null;
@@ -606,6 +669,7 @@ export class SettingsComponent implements OnInit {
     this.refreshGpsStatus();
     this.refreshThumbsStatus();
     this.refreshFaceStatus();
+    this.api.getCronStatus().subscribe({ next: (s) => { this.cronStatus = s; this.cdr.detectChanges(); } });
     this.api.getTvStatus().subscribe({ next: (s) => { this.dlnaRunning = s.dlna.running; this.cdr.detectChanges(); } });
     this.api.getAlbums().subscribe({ next: (albums) => {
       const tv = albums.find((a: { name: string }) => a.name === 'TV Slideshow');
@@ -651,6 +715,33 @@ export class SettingsComponent implements OnInit {
       }
       this.cdr.detectChanges();
     }});
+  }
+
+  toggleCron(): void {
+    if (!this.cronStatus) return;
+    this.api.setCronEnabled(!this.cronStatus.enabled).subscribe({
+      next: () => {
+        this.api.getCronStatus().subscribe({ next: (s) => { this.cronStatus = s; this.cdr.detectChanges(); } });
+      },
+    });
+  }
+
+  triggerCronNow(): void {
+    this.api.triggerCron().subscribe({
+      next: () => {
+        if (this.cronStatus) this.cronStatus.running = true;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  setCronHour(event: Event): void {
+    const hour = parseInt((event.target as HTMLSelectElement).value, 10);
+    this.api.setCronHour(hour).subscribe({
+      next: () => {
+        this.api.getCronStatus().subscribe({ next: (s) => { this.cronStatus = s; this.cdr.detectChanges(); } });
+      },
+    });
   }
 
   rescanGps(): void {
