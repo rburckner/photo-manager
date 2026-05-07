@@ -82,9 +82,9 @@ interface Notification {
     }
 
     .notif-panel {
-      position: absolute;
-      top: 100%;
-      right: 0;
+      position: fixed;
+      top: 60px;
+      left: 220px;
       background: #222;
       border: 1px solid #444;
       border-radius: 8px;
