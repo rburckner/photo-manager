@@ -85,8 +85,8 @@ export class ApiService {
     return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/rescan-gps`, {});
   }
 
-  getGpsScanStatus(): Observable<{ running: boolean; checked: number; found: number; total: number }> {
-    return this.http.get<{ running: boolean; checked: number; found: number; total: number }>(`${this.baseUrl}/photos/rescan-gps/status`);
+  getGpsScanStatus(): Observable<{ running: boolean; withGps: number; withoutGps: number; checked: number; found: number; total: number }> {
+    return this.http.get<{ running: boolean; withGps: number; withoutGps: number; checked: number; found: number; total: number }>(`${this.baseUrl}/photos/rescan-gps/status`);
   }
 
   cancelGpsScan(): Observable<{ ok: boolean }> {

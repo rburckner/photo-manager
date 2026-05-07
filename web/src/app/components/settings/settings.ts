@@ -40,7 +40,7 @@ import type { CollectionStats } from '../../models/photo.model';
           </div>
           @if (gpsStatus) {
             <div class="job-progress">
-              {{ gpsStatus.found.toLocaleString() }} GPS found — {{ gpsStatus.checked.toLocaleString() }} / {{ gpsStatus.total.toLocaleString() }} checked
+              {{ gpsStatus.withGps.toLocaleString() }} geotagged — {{ gpsStatus.withoutGps.toLocaleString() }} without GPS
             </div>
             <div class="job-actions">
               <button class="btn-job" (click)="rescanGps()" [disabled]="gpsRunning">
@@ -541,7 +541,7 @@ export class SettingsComponent implements OnInit {
   private facePollTimer: ReturnType<typeof setInterval> | null = null;
   clusteringRunning = false;
   gpsRunning = true; // assume running until status confirms
-  gpsStatus: { running: boolean; checked: number; found: number; total: number } | null = null;
+  gpsStatus: { running: boolean; withGps: number; withoutGps: number; checked: number; found: number; total: number } | null = null;
   private gpsPollTimer: ReturnType<typeof setInterval> | null = null;
   embeddingRunning = true; // assume running until status confirms otherwise
   embeddingStatus: { running: boolean; total: number; embedded: number; remaining: number } | null = null;

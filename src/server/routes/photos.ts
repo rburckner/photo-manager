@@ -338,7 +338,19 @@ export async function photoRoutes(
 
   // GET /api/photos/rescan-gps/status
   app.get('/api/photos/rescan-gps/status', async () => {
-    return { running: gpsScanRunning, ...gpsScanProgress };
+    // Always show real DB counts, overlaid with in-progress scan stats
+    const totalWithoutGps = (db.prepare('SELECT count(*) as c FROM photos WHERE gps_lat IS NULL AND is_video = 0').get() as { c: number }).c;
+    const totalWithGps = (db.prepare('SELECT count(*) as c FROM photos WHERE gps_lat IS NOT NULL').get() as { c: number }).c;
+
+    return {
+      running: gpsScanRunning,
+      withGps: totalWithGps,
+      withoutGps: totalWithoutGps,
+      // In-progress scan stats
+      checked: gpsScanProgress.checked,
+      found: gpsScanProgress.found,
+      total: gpsScanRunning ? gpsScanProgress.total : totalWithoutGps,
+    };
   });
 
   // POST /api/photos/rescan-gps/cancel
