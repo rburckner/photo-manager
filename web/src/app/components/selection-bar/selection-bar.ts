@@ -1,5 +1,6 @@
 import { Component, ChangeDetectorRef, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { SelectionService } from '../../services/selection.service';
 import { ApiService } from '../../services/api.service';
@@ -20,7 +21,11 @@ import type { Album } from '../../models/photo.model';
           <button class="bar-btn" (click)="bulkFavorite(true)">&#9733; Favorite</button>
           <button class="bar-btn" (click)="bulkFavorite(false)">&#9734; Unfavorite</button>
           <button class="bar-btn" (click)="exportSelected()">&#8615; Export Zip</button>
-          <button class="bar-btn" (click)="bulkHide(true)">&#128065; Hide</button>
+          @if (isHiddenView) {
+            <button class="bar-btn" (click)="bulkHide(false)">&#128065; Unhide</button>
+          } @else {
+            <button class="bar-btn" (click)="bulkHide(true)">&#128065; Hide</button>
+          }
           <div class="date-picker-wrap">
             <button class="bar-btn" (click)="showDatePicker = !showDatePicker">&#128197; Set Date</button>
             @if (showDatePicker) {
@@ -174,11 +179,13 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
   albums: Album[] = [];
   activeAlbumId: number | null = null;
   actionMessage = '';
+  isHiddenView = false;
 
   private subs: Subscription[] = [];
 
   constructor(
     public readonly selection: SelectionService,
+    private readonly router: Router,
     private readonly api: ApiService,
     private readonly cdr: ChangeDetectorRef,
   ) {}
@@ -187,6 +194,7 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
     this.subs.push(
       this.selection.selectionMode$.subscribe((v) => {
         this.selectionMode = v;
+        this.isHiddenView = this.router.url === '/hidden';
         if (v && this.albums.length === 0) {
           this.api.getAlbums().subscribe({ next: (a) => { this.albums = a; this.cdr.detectChanges(); } });
         }
