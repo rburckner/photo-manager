@@ -125,6 +125,44 @@ import { CommonModule } from '@angular/common';
       </div>
 
       <div class="help-section">
+        <h3>Production Deployment</h3>
+        <p>The app runs as a Docker container via docker-compose:</p>
+        <div class="code-block">
+          <code># Start the app (runs in background, auto-restarts)</code><br>
+          <code>docker compose up -d</code><br><br>
+          <code># View logs</code><br>
+          <code>docker compose logs -f</code><br><br>
+          <code># Stop the app</code><br>
+          <code>docker compose down</code><br><br>
+          <code># Rebuild after code changes</code><br>
+          <code>docker compose up -d --build</code>
+        </div>
+        <p style="margin-top: 12px"><strong>Port mapping (docker-compose.yml):</strong></p>
+        <table class="feature-table">
+          <tbody>
+            <tr><td>Host <strong>:80</strong> &rarr; Container :3000</td><td>Web UI &amp; API</td></tr>
+            <tr><td>Host <strong>:8200</strong> &rarr; Container :8200</td><td>DLNA content server</td></tr>
+            <tr><td>Host <strong>:1900/udp</strong> &rarr; Container :1900/udp</td><td>SSDP discovery</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top: 12px"><strong>Volumes:</strong></p>
+        <table class="feature-table">
+          <tbody>
+            <tr><td><code>/photos</code> (read-only)</td><td>NAS mount — your photo collection</td></tr>
+            <tr><td><code>/data</code> (read-write)</td><td>SQLite database, thumbnails, face models, inbox</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top: 12px">
+          The container auto-restarts on failure or reboot (<code>restart: unless-stopped</code>).
+          Daily re-index runs at 2 AM inside the container.
+        </p>
+        <p>
+          Before first start, run <code>./scripts/check-env.sh</code> to verify the NAS is mounted,
+          ports are free, and firewall rules are set.
+        </p>
+      </div>
+
+      <div class="help-section">
         <h3>CLI Commands</h3>
         <table class="feature-table">
           <tbody>
