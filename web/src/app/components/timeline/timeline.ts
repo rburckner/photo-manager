@@ -371,25 +371,18 @@ export class TimelineComponent implements OnInit, OnDestroy {
 
     this.loading = true;
 
-    this.api.getTimeline(this.currentPage, this.pageSize).subscribe({
+    // Build ISO date range for server-side filtering
+    const after = this.fromDate ? `${this.fromDate}-01T00:00:00.000Z` : undefined;
+    let before: string | undefined;
+    if (this.toDate) {
+      const d = new Date(`${this.toDate}-01`);
+      d.setMonth(d.getMonth() + 1);
+      before = d.toISOString();
+    }
+
+    this.api.getTimeline(this.currentPage, this.pageSize, after, before).subscribe({
       next: (response) => {
-        console.debug('[Timeline] API response received', {
-          groupCount: response.groups.length,
-          hasMore: response.hasMore,
-          fromDate: this.fromDate,
-          toDate: this.toDate,
-        });
-
         for (const newGroup of response.groups) {
-          // Client-side date filter (only when range is set)
-          if (this.fromDate && this.toDate) {
-            const groupMonth = newGroup.date.slice(0, 7);
-            if (groupMonth < this.fromDate || groupMonth > this.toDate) {
-              console.debug('[Timeline] Filtering out group', { date: newGroup.date, groupMonth, fromDate: this.fromDate, toDate: this.toDate });
-              continue;
-            }
-          }
-
           const existing = this.groups.find((g) => g.date === newGroup.date);
           if (existing) {
             existing.photos.push(...newGroup.photos);
@@ -401,11 +394,9 @@ export class TimelineComponent implements OnInit, OnDestroy {
         this.hasMore = response.hasMore;
         this.currentPage++;
         this.loading = false;
-        console.debug('[Timeline] State after load', { groupsCount: this.groups.length, loading: this.loading });
         this.cdr.detectChanges();
       },
-      error: (err) => {
-        console.error('[Timeline] API error', err);
+      error: () => {
         this.loading = false;
         this.cdr.detectChanges();
       },

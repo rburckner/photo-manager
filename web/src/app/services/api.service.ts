@@ -9,10 +9,12 @@ export class ApiService {
 
   constructor(private readonly http: HttpClient) {}
 
-  getTimeline(page: number = 0, limit: number = 100): Observable<TimelineResponse> {
-    const params = new HttpParams()
+  getTimeline(page: number = 0, limit: number = 100, after?: string, before?: string): Observable<TimelineResponse> {
+    let params = new HttpParams()
       .set('page', page.toString())
       .set('limit', limit.toString());
+    if (after) params = params.set('after', after);
+    if (before) params = params.set('before', before);
     return this.http.get<TimelineResponse>(`${this.baseUrl}/photos/timeline`, { params });
   }
 
