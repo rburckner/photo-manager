@@ -7,6 +7,7 @@ import { ShortcutsComponent } from '../shortcuts/shortcuts';
 import { NotificationBellComponent } from '../notification-bell/notification-bell';
 import { ToastComponent } from '../toast/toast';
 import { ApiService } from '../../services/api.service';
+import { DeviceAuthService } from '../../services/device-auth.service';
 import { SelectionService } from '../../services/selection.service';
 import { SettingsService } from '../../services/settings.service';
 
@@ -93,6 +94,21 @@ import { SettingsService } from '../../services/settings.service';
               }
             </a>
           </li>
+          @if (deviceAuth.isPaired()) {
+            <li>
+              <a routerLink="/upload" routerLinkActive="active">
+                <span class="icon">&#11014;</span>
+                Upload
+              </a>
+            </li>
+          } @else {
+            <li>
+              <a routerLink="/pair" routerLinkActive="active">
+                <span class="icon">&#128241;</span>
+                Pair device
+              </a>
+            </li>
+          }
           <li>
             <a routerLink="/help" routerLinkActive="active">
               <span class="icon">&#10067;</span>
@@ -246,6 +262,7 @@ export class ShellComponent implements OnInit, OnDestroy {
     private readonly settingsService: SettingsService,
     private readonly api: ApiService,
     private readonly selection: SelectionService,
+    public readonly deviceAuth: DeviceAuthService,
     private readonly router: Router,
     private readonly cdr: ChangeDetectorRef,
   ) {}

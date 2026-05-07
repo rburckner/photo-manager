@@ -75,6 +75,14 @@ export const routes: Routes = [
         path: 'trash',
         loadComponent: () => import('./components/trash/trash').then((m) => m.TrashComponent),
       },
+      {
+        path: 'pair',
+        loadComponent: () => import('./components/pair/pair').then((m) => m.PairComponent),
+      },
+      {
+        path: 'upload',
+        loadComponent: () => import('./components/upload/upload').then((m) => m.UploadComponent),
+      },
     ],
   },
 ];

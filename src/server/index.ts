@@ -19,6 +19,7 @@ import { TagRepository } from '../db/repositories/tag.repository.js';
 import { authRoutes, createAuthMiddleware } from './routes/auth.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { trashRoutes } from './routes/trash.js';
+import { uploadRoutes } from './routes/upload.js';
 import { startDlnaServer } from './dlna.js';
 import { startInboxWatcher } from '../ingestion/index.js';
 import { startCronReindex } from './cron.js';
@@ -90,6 +91,7 @@ async function start(): Promise<void> {
   await app.register(authRoutes, { db });
   await app.register(notificationRoutes, { db });
   await app.register(trashRoutes, { photoRepo, config });
+  await app.register(uploadRoutes, { photoRepo, config, db });
 
   // Optional auth middleware (enabled via Settings → auth_required=true)
   const authMiddleware = createAuthMiddleware(db);

@@ -18,6 +18,83 @@ export interface IngestResult {
 }
 
 /**
+ * Ingest a single file given its raw bytes and original filename.
+ * Used by both the inbox watcher and the upload endpoint.
+ */
+export async function ingestBuffer(
+  fileBuffer: Buffer,
+  originalName: string,
+  config: AppConfig,
+  photoRepo: PhotoRepository,
+): Promise<IngestResult> {
+  const log = getLogger();
+  const ext = extname(originalName).toLowerCase();
+  if (!SUPPORTED_EXTENSIONS.has(ext)) {
+    return { file: originalName, hash: '', action: 'skipped' };
+  }
+
+  try {
+    const hash = createHash('sha256').update(fileBuffer).digest('hex');
+
+    const existing = photoRepo.findByHash(hash);
+    if (existing.length > 0) {
+      return { file: originalName, hash, action: 'duplicate' };
+    }
+
+    const date = new Date().toISOString().slice(0, 10);
+    const destRel = join('inbox', date, `${hash}${ext}`);
+    const destPath = join(config.mediaRoot, destRel);
+
+    await mkdir(dirname(destPath), { recursive: true });
+    await writeFile(destPath, fileBuffer);
+
+    const destStat = await stat(destPath);
+    const folderPath = dirname(destRel);
+    const fileEntry: FileEntry = {
+      absolutePath: destPath,
+      relativePath: destRel,
+      folderPath: folderPath === '.' ? '' : folderPath,
+      fileName: hash,
+      fileSize: destStat.size,
+      dateModified: destStat.mtime,
+    };
+
+    const scanConfig: ScanConfig = {
+      rootPath: config.mediaRoot,
+      mediaRoot: config.mediaRoot,
+      thumbnailDir: config.thumbnailDir,
+      generateThumbnails: true,
+      concurrency: 1,
+      batchSize: 1,
+      force: false,
+      dryRun: false,
+    };
+
+    let indexed = false;
+    try {
+      const photoInsert = await processFile(fileEntry, scanConfig);
+      photoRepo.batchInsert([photoInsert]);
+      indexed = true;
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      log.warn({ file: originalName, hash, destination: destPath, error }, 'File copied but indexing failed — will be picked up by next scan');
+    }
+
+    return {
+      file: originalName,
+      hash,
+      action: 'imported',
+      destination: destRel,
+      indexed,
+    };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    log.warn({ file: originalName, error }, 'Failed to ingest file');
+    return { file: originalName, hash: '', action: 'error', error };
+  }
+}
+
+/**
  * Processes all files in the inbox directory:
  * 1. Hash each file (SHA-256)
  * 2. Check if hash exists in DB (duplicate)

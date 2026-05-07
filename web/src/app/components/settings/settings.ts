@@ -310,6 +310,35 @@ import type { CollectionStats } from '../../models/photo.model';
         </label>
       </div>
 
+      <!-- Devices (phone pairing for upload) -->
+      <div class="setting-section">
+        <h3>Paired devices</h3>
+        <p class="section-desc">
+          Pair a phone or other device to upload photos. The device opens this
+          server in a browser, navigates to /pair, and enters the 6-digit code
+          you generate here.
+        </p>
+        @if (pairingCode) {
+          <div class="pair-code-box">
+            <span class="pair-code">{{ pairingCode }}</span>
+            <span class="pair-hint">Enter on your device within 5 minutes.</span>
+          </div>
+        }
+        <button class="btn-small" (click)="generatePairingCode()">Generate pairing code</button>
+
+        @if (devices.length > 0) {
+          <div class="devices-list">
+            @for (d of devices; track d.id) {
+              <div class="device-row">
+                <span class="device-name">{{ d.name }}</span>
+                <span class="device-meta">last seen {{ d.last_seen ? formatRelative(d.last_seen) : 'never' }}</span>
+                <button class="btn-small btn-danger" (click)="revokeDevice(d.id, d.name)">Revoke</button>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
       <!-- Cleanup -->
       <div class="setting-section">
         <h3>Pending Cleanup</h3>
@@ -534,6 +563,40 @@ import type { CollectionStats } from '../../models/photo.model';
       font-size: 0.85rem;
     }
 
+    .pair-code-box {
+      background: #1a2a3a;
+      border: 1px solid #2a4a6a;
+      border-radius: 6px;
+      padding: 12px;
+      margin: 12px 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .pair-code {
+      font-family: monospace;
+      font-size: 1.6rem;
+      font-weight: 600;
+      letter-spacing: 0.4em;
+      color: #fff;
+    }
+    .pair-hint { font-size: 0.75rem; color: #8ac; }
+
+    .devices-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+    .device-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      background: #1e1e1e;
+      border: 1px solid #2a2a2a;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    .device-name { flex: 1; color: #ddd; }
+    .device-meta { font-size: 0.75rem; color: #888; }
+    .btn-danger { color: #e88; border-color: #844; &:hover { background: rgba(255,100,100,0.15); } }
+
     .btn-small {
       background: #2a2a2a;
       border: 1px solid #444;
@@ -581,6 +644,9 @@ export class SettingsComponent implements OnInit {
   ingestRunning = false;
   ingestResult: { imported: number; duplicates: number; errors: number } | null = null;
 
+  pairingCode = '';
+  devices: Array<{ id: number; name: string; last_seen: string | null }> = [];
+
   constructor(
     private readonly api: ApiService,
     private readonly settingsService: SettingsService,
@@ -591,6 +657,7 @@ export class SettingsComponent implements OnInit {
     this.api.getStats().subscribe({ next: (s) => { this.stats = s; this.cdr.detectChanges(); } });
     this.api.getScanStatus().subscribe({ next: (s) => { this.scanStatus = s; this.cdr.detectChanges(); } });
     this.api.getCleanupLog().subscribe({ next: (items) => { this.cleanupItems = items; this.cdr.detectChanges(); } });
+    this.refreshDevices();
     this.settingsService.settings$.subscribe((s) => { this.settings = s; this.cdr.detectChanges(); });
     this.refreshEmbeddingStatus();
     this.refreshGpsStatus();
@@ -864,5 +931,44 @@ export class SettingsComponent implements OnInit {
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
     return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+  }
+
+  // ── Device pairing ──
+  generatePairingCode(): void {
+    this.api.generatePairingCode().subscribe({
+      next: (res) => {
+        this.pairingCode = res.code;
+        this.cdr.detectChanges();
+        // Clear after 5 minutes (matches expiration)
+        setTimeout(() => { this.pairingCode = ''; this.cdr.detectChanges(); }, 5 * 60 * 1000);
+      },
+    });
+  }
+
+  revokeDevice(id: number, name: string): void {
+    if (!confirm(`Revoke "${name}"? It will no longer be able to upload.`)) return;
+    this.api.revokeDevice(id).subscribe({
+      next: () => this.refreshDevices(),
+    });
+  }
+
+  private refreshDevices(): void {
+    this.api.getDevices().subscribe({
+      next: (devices) => {
+        this.devices = devices.map((d) => ({ id: d.id, name: d.name, last_seen: d.last_seen }));
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  formatRelative(iso: string): string {
+    const ms = Date.now() - new Date(iso).getTime();
+    const days = Math.floor(ms / 86400000);
+    if (days >= 1) return `${days}d ago`;
+    const hours = Math.floor(ms / 3600000);
+    if (hours >= 1) return `${hours}h ago`;
+    const mins = Math.floor(ms / 60000);
+    if (mins >= 1) return `${mins}m ago`;
+    return 'just now';
   }
 }

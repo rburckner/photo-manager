@@ -467,20 +467,42 @@ export class ApiService {
   }
 
   // Device pairing & auth
-  getDevices(): Observable<Array<{ id: number; name: string; last_seen: string }>> {
-    return this.http.get<Array<{ id: number; name: string; last_seen: string }>>(`${this.baseUrl}/auth/devices`);
+  getDevices(): Observable<Array<{ id: number; name: string; is_active: number; paired_at: string; last_seen: string | null }>> {
+    return this.http.get<Array<{ id: number; name: string; is_active: number; paired_at: string; last_seen: string | null }>>(`${this.baseUrl}/auth/devices`);
   }
 
-  generatePairingCode(): Observable<{ code: string }> {
-    return this.http.post<{ code: string }>(`${this.baseUrl}/auth/generate-code`, {});
+  generatePairingCode(): Observable<{ code: string; expires_at: string }> {
+    return this.http.post<{ code: string; expires_at: string }>(`${this.baseUrl}/auth/generate-code`, {});
   }
 
-  pairDevice(code: string, name: string): Observable<{ ok: boolean }> {
-    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/auth/pair`, { code, name });
+  pairDevice(code: string, deviceName: string): Observable<{ api_key: string; device_name: string }> {
+    return this.http.post<{ api_key: string; device_name: string }>(
+      `${this.baseUrl}/auth/pair`,
+      { code, device_name: deviceName },
+    );
   }
 
   revokeDevice(id: number): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/auth/devices/${id}`);
+  }
+
+  // Phone upload (uses API key from localStorage)
+  checkUploadHash(hash: string, apiKey: string): Observable<{ exists: boolean }> {
+    const params = new HttpParams().set('hash', hash);
+    return this.http.get<{ exists: boolean }>(`${this.baseUrl}/upload/check`, {
+      params,
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+  }
+
+  uploadPhoto(file: File, apiKey: string): Observable<{ action: string; hash: string; indexed?: boolean; destination?: string; error?: string }> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.http.post<{ action: string; hash: string; indexed?: boolean; destination?: string; error?: string }>(
+      `${this.baseUrl}/upload`,
+      form,
+      { headers: { Authorization: `Bearer ${apiKey}` } },
+    );
   }
 
   // People merge
