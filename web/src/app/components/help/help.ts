@@ -224,5 +224,5 @@ import { CommonModule } from '@angular/common';
   `],
 })
 export class HelpComponent {
-  webPort = window.location.port || '80';
+  webPort = '80';
 }
