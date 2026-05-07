@@ -128,15 +128,22 @@ export async function faceRoutes(
     const imgW = metadata.width ?? 400;
     const imgH = metadata.height ?? 400;
 
-    // Face coords are normalized 0-1
-    const left = Math.max(0, Math.round(faceRow.x * imgW) - 10);
-    const top = Math.max(0, Math.round(faceRow.y * imgH) - 10);
-    const width = Math.min(imgW - left, Math.round(faceRow.width * imgW) + 20);
-    const height = Math.min(imgH - top, Math.round(faceRow.height * imgH) + 20);
+    // Face coords are normalized 0-1. Add generous padding around the face.
+    const faceW = Math.round(faceRow.width * imgW);
+    const faceH = Math.round(faceRow.height * imgH);
+    const padX = Math.max(faceW, 40); // at least face-width padding on each side
+    const padY = Math.max(faceH, 40);
+
+    const left = Math.max(0, Math.round(faceRow.x * imgW) - padX);
+    const top = Math.max(0, Math.round(faceRow.y * imgH) - padY);
+    const right = Math.min(imgW, Math.round((faceRow.x + faceRow.width) * imgW) + padX);
+    const bottom = Math.min(imgH, Math.round((faceRow.y + faceRow.height) * imgH) + padY);
+    const width = right - left;
+    const height = bottom - top;
 
     const cropped = await sharp(thumbPath)
-      .extract({ left, top, width, height })
-      .resize(128, 128, { fit: 'cover' })
+      .extract({ left, top, width: Math.max(1, width), height: Math.max(1, height) })
+      .resize(200, 200, { fit: 'cover' })
       .jpeg({ quality: 85 })
       .toBuffer();
 
