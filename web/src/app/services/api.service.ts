@@ -81,6 +81,18 @@ export class ApiService {
     return this.http.get<Photo[]>(`${this.baseUrl}/photos/bad-dates`, { params: { limit: limit.toString() } });
   }
 
+  findVisuallySimilar(id: number, limit: number = 30): Observable<Array<Photo & { similarity: number }>> {
+    return this.http.get<Array<Photo & { similarity: number }>>(`${this.baseUrl}/photos/${id}/visually-similar`, { params: { limit: limit.toString() } });
+  }
+
+  runEmbeddingScan(batchSize: number = 50): Observable<{ scanned: number; embedded: number }> {
+    return this.http.post<{ scanned: number; embedded: number }>(`${this.baseUrl}/embeddings/scan`, { batch_size: batchSize });
+  }
+
+  cancelEmbeddingScan(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/embeddings/cancel`, {});
+  }
+
   findSimilar(id: number): Observable<{ sameDay: Photo[]; samePerson: Photo[] }> {
     return this.http.get<{ sameDay: Photo[]; samePerson: Photo[] }>(`${this.baseUrl}/photos/${id}/similar`);
   }

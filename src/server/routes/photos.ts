@@ -258,6 +258,39 @@ export async function photoRoutes(
     return photoRepo.getDuplicates();
   });
 
+  // POST /api/embeddings/scan — generate visual embeddings for photos
+  app.post<{ Body: { batch_size?: number } }>('/api/embeddings/scan', async (request) => {
+    const batchSize = request.body?.batch_size ?? 50;
+    const { runEmbeddingScan } = await import('../../scanner/embeddings.js');
+    return await runEmbeddingScan(db, config, batchSize);
+  });
+
+  // POST /api/embeddings/cancel — cancel embedding scan
+  app.post('/api/embeddings/cancel', async () => {
+    const { cancelEmbeddingScan } = await import('../../scanner/embeddings.js');
+    return { ok: cancelEmbeddingScan() };
+  });
+
+  // GET /api/photos/:id/visually-similar — find photos that look similar
+  app.get<{ Params: { id: string }; Querystring: { limit?: string; threshold?: string } }>(
+    '/api/photos/:id/visually-similar', async (request) => {
+      const id = parseInt(request.params.id, 10);
+      const limit = Math.min(100, parseInt(request.query.limit ?? '30', 10));
+      const threshold = parseFloat(request.query.threshold ?? '0.7');
+
+      const { findVisuallySimilar } = await import('../../scanner/embeddings.js');
+      const results = findVisuallySimilar(db, id, limit, threshold);
+
+      // Hydrate with photo data
+      const photos = results.map((r) => {
+        const photo = photoRepo.findById(r.photo_id);
+        return photo ? { ...photo, similarity: r.similarity } : null;
+      }).filter(Boolean);
+
+      return photos;
+    },
+  );
+
   // GET /api/photos/:id/similar — find photos from same day and same person
   app.get<{ Params: { id: string } }>('/api/photos/:id/similar', async (request, reply) => {
     const id = parseInt(request.params.id, 10);

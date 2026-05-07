@@ -699,22 +699,45 @@ export class LightboxComponent implements OnInit, OnDestroy {
     this.showSimilar = true;
     this.similarLoading = true;
     this.similarSelected.clear();
+    this.similarPhotos = [];
+
+    const ids = new Set<number>();
+    const all: Array<{ id: number }> = [];
+    let pending = 2;
+
+    const done = (): void => {
+      pending--;
+      if (pending <= 0) {
+        this.similarPhotos = all;
+        this.similarLoading = false;
+        this.cdr.detectChanges();
+      }
+    };
+
+    // Same day + same person
     this.api.findSimilar(this.photo.id).subscribe({
       next: (result) => {
-        // Combine sameDay + samePerson, deduplicate
-        const ids = new Set<number>();
-        const all: Array<{ id: number }> = [];
         for (const p of result.samePerson) {
           if (!ids.has(p.id)) { ids.add(p.id); all.push(p); }
         }
         for (const p of result.sameDay) {
           if (!ids.has(p.id)) { ids.add(p.id); all.push(p); }
         }
-        this.similarPhotos = all;
         this.hasSamePerson = result.samePerson.length > 0;
-        this.similarLoading = false;
-        this.cdr.detectChanges();
+        done();
       },
+      error: () => done(),
+    });
+
+    // Visual similarity (if embeddings exist)
+    this.api.findVisuallySimilar(this.photo.id).subscribe({
+      next: (photos) => {
+        for (const p of photos) {
+          if (!ids.has(p.id)) { ids.add(p.id); all.push(p); }
+        }
+        done();
+      },
+      error: () => done(),
     });
   }
 

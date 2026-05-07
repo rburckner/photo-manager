@@ -75,6 +75,29 @@ import type { CollectionStats } from '../../models/photo.model';
         }
       </div>
 
+      <!-- Visual Similarity -->
+      <div class="setting-section">
+        <h3>Visual Similarity</h3>
+        <p class="section-desc">
+          Generate image embeddings using MobileNet. Once embedded, "Find Similar" in the
+          lightbox will find photos that look visually alike — regardless of date or metadata.
+          First run downloads the model (~16MB) from TensorFlow Hub.
+        </p>
+        <div class="action-row">
+          <button class="btn-action" (click)="runEmbeddingScan()" [disabled]="embeddingRunning">
+            {{ embeddingRunning ? 'Generating...' : 'Generate Embeddings' }}
+          </button>
+          @if (embeddingRunning) {
+            <button class="btn-action btn-cancel" (click)="cancelEmbedding()">Cancel</button>
+          }
+        </div>
+        @if (embeddingResult) {
+          <div class="result-msg">
+            Scanned {{ embeddingResult.scanned }}, embedded {{ embeddingResult.embedded }} photos
+          </div>
+        }
+      </div>
+
       <!-- Thumbnails -->
       <div class="setting-section">
         <h3>Thumbnails</h3>
@@ -334,6 +357,8 @@ export class SettingsComponent implements OnInit {
   faceScanRunning = false;
   faceScanResult: { scanned: number; facesFound: number } | null = null;
   clusteringRunning = false;
+  embeddingRunning = false;
+  embeddingResult: { scanned: number; embedded: number } | null = null;
   thumbsRunning = false;
   thumbsResult: { checked: number; generated: number } | null = null;
   ingestRunning = false;
@@ -361,6 +386,19 @@ export class SettingsComponent implements OnInit {
   toggleSetting(key: string, event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     this.settingsService.set(key, checked ? 'true' : 'false');
+  }
+
+  runEmbeddingScan(): void {
+    this.embeddingRunning = true;
+    this.embeddingResult = null;
+    this.api.runEmbeddingScan(50).subscribe({
+      next: (r) => { this.embeddingResult = r; this.embeddingRunning = false; this.cdr.detectChanges(); },
+      error: () => { this.embeddingRunning = false; },
+    });
+  }
+
+  cancelEmbedding(): void {
+    this.api.cancelEmbeddingScan().subscribe();
   }
 
   downloadBackup(): void {
