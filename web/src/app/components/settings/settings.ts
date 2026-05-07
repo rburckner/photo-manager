@@ -42,6 +42,9 @@ import type { CollectionStats } from '../../models/photo.model';
           <button class="btn-action" (click)="runFaceScan()" [disabled]="faceScanRunning">
             {{ faceScanRunning ? 'Scanning...' : 'Scan for Faces' }}
           </button>
+          @if (faceScanRunning) {
+            <button class="btn-action btn-cancel" (click)="cancelFaceScan()">Cancel</button>
+          }
           <button class="btn-action" (click)="runClustering()" [disabled]="clusteringRunning">
             {{ clusteringRunning ? 'Clustering...' : 'Cluster Faces' }}
           </button>
@@ -176,6 +179,7 @@ import type { CollectionStats } from '../../models/photo.model';
 
       &:hover { background: #333; }
       &:disabled { opacity: 0.5; cursor: not-allowed; }
+      &.btn-cancel { color: #e88; border-color: #844; &:hover { background: #3a1a1a; } }
     }
 
     .result-msg {
@@ -258,6 +262,15 @@ export class SettingsComponent implements OnInit {
   toggleSetting(key: string, event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     this.settingsService.set(key, checked ? 'true' : 'false');
+  }
+
+  cancelFaceScan(): void {
+    this.api.cancelFaceScan().subscribe({
+      next: () => {
+        this.faceScanResult = { scanned: 0, facesFound: 0 };
+        this.cdr.detectChanges();
+      },
+    });
   }
 
   runFaceScan(): void {

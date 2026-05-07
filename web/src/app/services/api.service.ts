@@ -221,6 +221,10 @@ export class ApiService {
     return this.http.post<{ scanned: number; facesFound: number }>(`${this.baseUrl}/faces/scan`, { batch_size: batchSize });
   }
 
+  cancelFaceScan(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/faces/cancel`, {});
+  }
+
   triggerFaceClustering(): Observable<{ ok: boolean }> {
     return this.http.post<{ ok: boolean }>(`${this.baseUrl}/faces/cluster`, {});
   }

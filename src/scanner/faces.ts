@@ -107,6 +107,22 @@ export async function detectFacesInPhoto(
   }
 }
 
+// Cancellation flag for face scans
+let faceScanCancelled = false;
+let faceScanRunning = false;
+
+export function cancelFaceScan(): boolean {
+  if (faceScanRunning) {
+    faceScanCancelled = true;
+    return true;
+  }
+  return false;
+}
+
+export function isFaceScanRunning(): boolean {
+  return faceScanRunning;
+}
+
 /**
  * Run face detection on a batch of unscanned photos.
  */
@@ -116,28 +132,47 @@ export async function runFaceScan(
   config: AppConfig,
   batchSize: number = 100,
   onProgress?: (current: number, total: number) => void,
-): Promise<{ scanned: number; facesFound: number }> {
+): Promise<{ scanned: number; facesFound: number; cancelled: boolean }> {
   const log = getLogger();
   const modelsDir = join(config.thumbnailDir, '..', 'face-models');
+
+  if (faceScanRunning) {
+    log.warn('Face scan already running');
+    return { scanned: 0, facesFound: 0, cancelled: false };
+  }
 
   await loadFaceModels(modelsDir);
   if (!modelsLoaded) {
     log.warn('Cannot run face scan — models not loaded');
-    return { scanned: 0, facesFound: 0 };
+    return { scanned: 0, facesFound: 0, cancelled: false };
   }
+
+  faceScanRunning = true;
+  faceScanCancelled = false;
 
   const photoIds = faceRepo.getUnscannedPhotoIds(batchSize);
   let facesFound = 0;
+  let scanned = 0;
 
   for (let i = 0; i < photoIds.length; i++) {
+    if (faceScanCancelled) {
+      log.info({ scanned, facesFound }, 'Face scan cancelled by user');
+      break;
+    }
+
     const id = photoIds[i]!;
     const count = await detectFacesInPhoto(id, photoRepo, faceRepo, config);
     facesFound += count;
+    scanned++;
     onProgress?.(i + 1, photoIds.length);
   }
 
-  log.info({ scanned: photoIds.length, facesFound }, 'Face scan batch complete');
-  return { scanned: photoIds.length, facesFound };
+  faceScanRunning = false;
+  const cancelled = faceScanCancelled;
+  faceScanCancelled = false;
+
+  log.info({ scanned, facesFound, cancelled }, 'Face scan batch complete');
+  return { scanned, facesFound, cancelled };
 }
 
 /**

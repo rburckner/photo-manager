@@ -90,10 +90,23 @@ export async function faceRoutes(
 
   // POST /api/faces/scan — trigger face detection on unscanned photos
   app.post<{ Body: { batch_size?: number } }>('/api/faces/scan', async (request) => {
-    const batchSize = request.body?.batch_size ?? 100;
+    const batchSize = request.body?.batch_size ?? 50;
     const { runFaceScan } = await import('../../scanner/faces.js');
     const result = await runFaceScan(photoRepo, faceRepo, config, batchSize);
     return result;
+  });
+
+  // POST /api/faces/cancel — cancel a running face scan
+  app.post('/api/faces/cancel', async () => {
+    const { cancelFaceScan } = await import('../../scanner/faces.js');
+    const cancelled = cancelFaceScan();
+    return { ok: cancelled, message: cancelled ? 'Cancelling...' : 'No scan running' };
+  });
+
+  // GET /api/faces/status — check if face scan is running
+  app.get('/api/faces/status', async () => {
+    const { isFaceScanRunning } = await import('../../scanner/faces.js');
+    return { running: isFaceScanRunning() };
   });
 
   // POST /api/faces/cluster — run clustering on unassigned faces
