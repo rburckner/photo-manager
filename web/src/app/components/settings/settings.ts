@@ -95,10 +95,10 @@ import type { CollectionStats } from '../../models/photo.model';
           }
         }
         <div class="action-row" style="margin-top: 8px">
-          <button class="btn-action" (click)="runEmbeddingScan()" [disabled]="embeddingRunning">
-            {{ embeddingRunning ? 'Generating...' : 'Generate Embeddings' }}
+          <button class="btn-action" (click)="runEmbeddingScan()" [disabled]="embeddingRunning || embeddingStatus?.running">
+            {{ (embeddingRunning || embeddingStatus?.running) ? 'Generating...' : 'Generate Embeddings' }}
           </button>
-          @if (embeddingRunning) {
+          @if (embeddingRunning || embeddingStatus?.running) {
             <button class="btn-action btn-cancel" (click)="cancelEmbedding()">Cancel</button>
           }
         </div>
@@ -387,11 +387,7 @@ export class SettingsComponent implements OnInit {
     this.api.getScanStatus().subscribe({ next: (s) => { this.scanStatus = s; this.cdr.detectChanges(); } });
     this.api.getCleanupLog().subscribe({ next: (items) => { this.cleanupItems = items; this.cdr.detectChanges(); } });
     this.settingsService.settings$.subscribe((s) => { this.settings = s; this.cdr.detectChanges(); });
-    this.api.getEmbeddingStatus().subscribe({ next: (s) => {
-      this.embeddingStatus = s;
-      if (s.running) this.embeddingRunning = true;
-      this.cdr.detectChanges();
-    }});
+    this.refreshEmbeddingStatus();
     this.api.getTvStatus().subscribe({ next: (s) => { this.dlnaRunning = s.dlna.running; this.cdr.detectChanges(); } });
     this.api.getAlbums().subscribe({ next: (albums) => {
       const tv = albums.find((a: { name: string }) => a.name === 'TV Slideshow');
@@ -403,6 +399,26 @@ export class SettingsComponent implements OnInit {
   toggleSetting(key: string, event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     this.settingsService.set(key, checked ? 'true' : 'false');
+  }
+
+  private embeddingPollTimer: ReturnType<typeof setInterval> | null = null;
+
+  private refreshEmbeddingStatus(): void {
+    this.api.getEmbeddingStatus().subscribe({ next: (s) => {
+      this.embeddingStatus = s;
+      if (s.running && !this.embeddingRunning) {
+        this.embeddingRunning = true;
+        // Poll while server is running
+        if (!this.embeddingPollTimer) {
+          this.embeddingPollTimer = setInterval(() => this.refreshEmbeddingStatus(), 3000);
+        }
+      }
+      if (!s.running && this.embeddingPollTimer && !this.embeddingRunning) {
+        clearInterval(this.embeddingPollTimer);
+        this.embeddingPollTimer = null;
+      }
+      this.cdr.detectChanges();
+    }});
   }
 
   private embeddingTotalScanned = 0;
