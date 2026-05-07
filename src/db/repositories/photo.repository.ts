@@ -387,9 +387,10 @@ export class PhotoRepository {
         sum(CASE WHEN is_video = 0 THEN 1 ELSE 0 END) as images,
         sum(CASE WHEN is_video = 1 THEN 1 ELSE 0 END) as videos,
         sum(file_size) as totalSize,
-        min(date_taken) as earliestDate,
-        max(date_taken) as latestDate
+        min(CASE WHEN COALESCE(date_taken, date_modified) > '1990-01-01' THEN COALESCE(date_taken, date_modified) END) as earliestDate,
+        max(CASE WHEN COALESCE(date_taken, date_modified) <= datetime('now', '+1 day') THEN COALESCE(date_taken, date_modified) END) as latestDate
       FROM photos
+      WHERE is_hidden = 0
     `).get() as { total: number; images: number; videos: number; totalSize: number; earliestDate: string | null; latestDate: string | null };
     return row;
   }
