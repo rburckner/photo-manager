@@ -57,6 +57,19 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export interface FolderEntry {
+  folder_path: string;
+  count: number;
+}
+
+export interface FolderTreeNode {
+  name: string;
+  path: string;
+  count: number;
+  children: FolderTreeNode[];
+  expanded: boolean;
+}
+
 export interface CollectionStats {
   total: number;
   images: number;

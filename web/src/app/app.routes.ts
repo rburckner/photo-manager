@@ -12,7 +12,7 @@ export const routes: Routes = [
       },
       {
         path: 'folders',
-        loadComponent: () => import('./components/timeline/timeline').then((m) => m.TimelineComponent), // placeholder
+        loadComponent: () => import('./components/folders/folders').then((m) => m.FoldersComponent),
       },
       {
         path: 'albums',

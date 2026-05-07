@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import type { Photo, TimelineResponse, CollectionStats } from '../models/photo.model';
+import type { Photo, TimelineResponse, CollectionStats, PaginatedResponse, FolderEntry } from '../models/photo.model';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -22,6 +22,20 @@ export class ApiService {
 
   getStats(): Observable<CollectionStats> {
     return this.http.get<CollectionStats>(`${this.baseUrl}/stats`);
+  }
+
+  getFolders(): Observable<FolderEntry[]> {
+    return this.http.get<FolderEntry[]>(`${this.baseUrl}/photos/folders`);
+  }
+
+  getPhotos(page: number = 1, limit: number = 50, folder?: string): Observable<PaginatedResponse<Photo>> {
+    let params = new HttpParams()
+      .set('page', page.toString())
+      .set('limit', limit.toString());
+    if (folder) {
+      params = params.set('folder', folder);
+    }
+    return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/photos`, { params });
   }
 
   getThumbnailUrl(id: number): string {
