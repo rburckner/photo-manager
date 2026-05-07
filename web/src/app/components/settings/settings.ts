@@ -94,14 +94,16 @@ import type { CollectionStats } from '../../models/photo.model';
             </div>
           }
         }
-        <div class="action-row" style="margin-top: 8px">
-          <button class="btn-action" (click)="runEmbeddingScan()" [disabled]="embeddingRunning || embeddingStatus?.running">
-            {{ (embeddingRunning || embeddingStatus?.running) ? 'Generating...' : 'Generate Embeddings' }}
-          </button>
-          @if (embeddingRunning || embeddingStatus?.running) {
-            <button class="btn-action btn-cancel" (click)="cancelEmbedding()">Cancel</button>
-          }
-        </div>
+        @if (embeddingStatus) {
+          <div class="action-row" style="margin-top: 8px">
+            <button class="btn-action" (click)="runEmbeddingScan()" [disabled]="embeddingRunning">
+              {{ embeddingRunning ? 'Generating...' : 'Generate Embeddings' }}
+            </button>
+            @if (embeddingRunning) {
+              <button class="btn-action btn-cancel" (click)="cancelEmbedding()">Cancel</button>
+            }
+          </div>
+        }
         @if (!embeddingRunning && embeddingStatus && embeddingStatus.remaining === 0) {
           <div class="result-msg">
             All photos embedded
@@ -368,8 +370,7 @@ export class SettingsComponent implements OnInit {
   faceScanRunning = false;
   faceScanResult: { scanned: number; facesFound: number } | null = null;
   clusteringRunning = false;
-  embeddingRunning = false;
-  embeddingResult: { scanned: number; embedded: number } | null = null;
+  embeddingRunning = true; // assume running until status confirms otherwise
   embeddingStatus: { running: boolean; total: number; embedded: number; remaining: number } | null = null;
   thumbsRunning = false;
   thumbsResult: { checked: number; generated: number } | null = null;
