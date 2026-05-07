@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { SelectionBarComponent } from '../selection-bar/selection-bar';
@@ -198,11 +198,20 @@ import { SettingsService } from '../../services/settings.service';
 export class ShellComponent implements OnInit {
   showFolders = true;
 
-  constructor(private readonly settingsService: SettingsService) {}
+  constructor(
+    private readonly settingsService: SettingsService,
+    private readonly cdr: ChangeDetectorRef,
+  ) {}
 
   ngOnInit(): void {
+    // Use setTimeout to avoid ExpressionChangedAfterItHasBeenCheckedError
+    // Settings emit synchronously from BehaviorSubject during init
     this.settingsService.settings$.subscribe((settings) => {
-      this.showFolders = settings['show_folders_nav'] !== 'false';
+      const show = settings['show_folders_nav'] !== 'false';
+      if (this.showFolders !== show) {
+        this.showFolders = show;
+        setTimeout(() => this.cdr.detectChanges());
+      }
     });
   }
 }
