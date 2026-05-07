@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import * as L from 'leaflet';
 import 'leaflet.markercluster';
 import { ApiService } from '../../services/api.service';
+import { FilterService } from '../../services/filter.service';
 import { LightboxComponent } from '../lightbox/lightbox';
 import type { MapPoint, Photo } from '../../models/photo.model';
 
@@ -209,9 +210,15 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
   constructor(
     private readonly api: ApiService,
     private readonly cdr: ChangeDetectorRef,
+    private readonly filterService: FilterService,
   ) {}
 
   ngOnInit(): void {
+    // Restore saved filters from timeline
+    const saved = this.filterService.current;
+    if (saved.fromDate) this.fromDate = saved.fromDate;
+    if (saved.toDate) this.toDate = saved.toDate;
+
     this.api.getMapPoints().subscribe({
       next: (points) => {
         this.points = points;
@@ -259,12 +266,14 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
   onFromChange(event: Event): void {
     this.fromDate = (event.target as HTMLInputElement).value;
     if (!this.validateDateRange()) return;
+    this.filterService.setDateRange(this.fromDate, this.toDate);
     this.renderMarkers();
   }
 
   onToChange(event: Event): void {
     this.toDate = (event.target as HTMLInputElement).value;
     if (!this.validateDateRange()) return;
+    this.filterService.setDateRange(this.fromDate, this.toDate);
     this.renderMarkers();
   }
 
