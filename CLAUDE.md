@@ -1,156 +1,182 @@
 # Photo Manager
 
-Self-hosted photo management system for a personal family photo collection (~123k items, 672GB) stored on a NAS.
+Self-hosted photo management system for ~120k family photos/videos (672GB) on a NAS. Replaces Google Photos with full local control — no cloud, no surveillance.
+
+**Repository:** https://github.com/rburckner/photo-manager
 
 ## Architecture
 
-- **Backend:** Fastify API + better-sqlite3 (SQLite with WAL mode)
-- **Frontend:** Angular SPA (planned, not yet scaffolded)
-- **CLI:** Commander-based (`npx tsx src/cli/index.ts`)
-- **Deployment:** Docker container with two volumes:
-  - `/photos` — NAS mount (read-only)
-  - `/data` — SQLite DB + thumbnail cache (read-write)
-- **Single package**, not a monorepo
+```
+┌─────────────────────────────────────────────────┐
+│  Docker Container (port 80 → 3000)              │
+│                                                 │
+│  ┌───────────┐   ┌──────────────────────────┐   │
+│  │  Angular   │   │  Fastify API             │   │
+│  │  SPA       │◄──│  /api/photos, /api/albums│   │
+│  │  (static)  │   │  /api/people, /api/tags  │   │
+│  └───────────┘   └──────────┬───────────────┘   │
+│                             │                   │
+│  ┌──────────────────────────▼───────────────┐   │
+│  │  SQLite (WAL) + Thumbnail Cache          │   │
+│  │  Face models (face-api.js)               │   │
+│  └──────────────────────────────────────────┘   │
+│                                                 │
+│  ┌─────────┐  ┌─────────┐  ┌────────────────┐  │
+│  │  DLNA   │  │  Cron   │  │  Inbox Watcher │  │
+│  │  :8200  │  │  2 AM   │  │  fs.watch      │  │
+│  └─────────┘  └─────────┘  └────────────────┘  │
+├─────────────────────────────────────────────────┤
+│  Volumes:                                       │
+│  /photos (NAS, read-only)                       │
+│  /data   (DB + thumbnails + face models, r/w)   │
+└─────────────────────────────────────────────────┘
+```
 
-## Tech stack
+## Tech Stack
 
-- TypeScript strict mode, ESM (`"type": "module"`)
-- Node.js 22+
-- `better-sqlite3` — synchronous API, WAL mode, batch transactions
-- `sharp` — image processing, HEIC support, thumbnails
-- `fluent-ffmpeg` — video thumbnails and probing
-- `exif-reader` — EXIF metadata extraction
-- `pino` — structured logging
+- **Runtime:** Node.js 22+, TypeScript strict mode, ESM
+- **Backend:** Fastify 5, better-sqlite3 (WAL mode)
+- **Frontend:** Angular 21, standalone components, lazy-loaded routes
+- **Images:** sharp (HEIC via JPG fallback), exif-reader
+- **Video:** fluent-ffmpeg (thumbnails + probe)
+- **Face detection:** face-api.js, TensorFlow.js, DBSCAN clustering
+- **Maps:** Leaflet + OpenStreetMap + marker clustering
+- **TV:** DLNA/UPnP via node-ssdp, fullscreen slideshow mode
+- **PWA:** Angular service worker, offline thumbnail cache
+- **CLI:** Commander
+- **Logging:** Pino
 
-## Project structure
+## Project Structure
 
 ```
 src/
-├── cli/              # Commander CLI entry point + commands
-├── server/           # Fastify API server
-├── scanner/          # File discovery, EXIF extraction, thumbnail generation
-├── db/               # SQLite connection, migrations, repositories
-├── ingestion/        # Dropbox/inbox file intake (planned)
-└── shared/           # Types, config, constants, logger
+├── cli/                 # CLI entry point + commands (scan, stats, ingest, import-takeout)
+├── server/
+│   ├── index.ts         # Fastify server, CORS, local network guard
+│   ├── cron.ts          # Daily re-index + face scan + thumbnail backfill
+│   ├── dlna.ts          # DLNA/UPnP media server (start/stop)
+│   └── routes/
+│       ├── photos.ts    # Photos CRUD, timeline, search, map, slideshow, export, settings
+│       ├── albums.ts    # Albums CRUD, photo management, reorder
+│       ├── faces.ts     # People, face scan/cluster, face crop
+│       ├── tags.ts      # Tags CRUD, photo tagging
+│       └── shares.ts    # Expiring share links
+├── scanner/
+│   ├── walker.ts        # Async generator filesystem walk
+│   ├── exif.ts          # EXIF extraction (sharp + exif-reader)
+│   ├── media-info.ts    # MIME detection, video probe
+│   ├── thumbnails.ts    # Thumbnail gen (sharp + ffmpeg, HEIC fallback)
+│   ├── faces.ts         # Face detection, embeddings, DBSCAN clustering
+│   └── index.ts         # Scan orchestrator (incremental, resumable, batched)
+├── db/
+│   ├── connection.ts    # SQLite singleton, WAL mode, pragmas
+│   ├── migrate.ts       # Migration runner
+│   ├── migrations/      # 001_initial, 002_cleanup_log, 003_faces, 004_shares, 005_settings
+│   └── repositories/    # photo, album, face, tag, scan-progress
+├── ingestion/           # Inbox watcher, hash, deduplicate, move to NAS
+└── shared/              # Types, config, constants, logger
+
+web/                     # Angular 21 SPA
+├── src/app/
+│   ├── components/
+│   │   ├── timeline/    # Date-grouped photo grid, year pills, infinite scroll
+│   │   ├── folders/     # NAS folder tree with photo grid
+│   │   ├── albums/      # Album list, detail, create/edit/delete
+│   │   ├── people/      # Face circles, triage (name/ignore/hide), photo grid
+│   │   ├── map/         # Leaflet map with clustered markers, date filter
+│   │   ├── search/      # Full-text search across filename, folder, camera
+│   │   ├── tags/        # Tag management, browse by tag
+│   │   ├── favorites/   # Starred photos
+│   │   ├── stats/       # Charts: by year, camera, file type, scan progress
+│   │   ├── settings/    # TV services, face scan, thumbnails, nav toggles, cleanup
+│   │   ├── duplicates/  # Duplicate detection, keep/remove
+│   │   ├── fix-dates/   # Drag-and-drop date correction
+│   │   ├── tv/          # Fullscreen slideshow (no shell, remote-friendly)
+│   │   ├── lightbox/    # Shared: EXIF info, nav, favorite, download, album, tags
+│   │   ├── selection-bar/ # Multi-select toolbar (favorite, album, export, set date)
+│   │   ├── shell/       # Sidebar nav, settings-driven visibility
+│   │   ├── shortcuts/   # Press ? for keyboard shortcuts overlay
+│   │   ├── toast/       # Toast notification component
+│   │   ├── help/        # Help page with shortcuts, features, firewall, deployment
+│   │   └── people/      # People/face detection view
+│   ├── services/        # ApiService, SelectionService, SettingsService, ToastService
+│   └── models/          # TypeScript interfaces
 ```
 
 ## Conventions
 
 - All imports use explicit `.js` extensions (Node16 module resolution)
-- Config via env vars prefixed `PM_` (see `src/shared/config.ts`)
+- Config via env vars prefixed `PM_` (see `.env.example`)
 - Database repositories use the class pattern with prepared statements
 - Scanner is incremental — compares file mtime to skip unchanged files
 - File hashes are the filenames (NAS naming convention), not recomputed
 - Errors in file processing are logged and skipped, never abort the scan
+- NAS is always read-only — delete only removes from DB index, never touches files
+- Cleanup log tracks files removed from index for manual NAS deletion
 
-## CLI commands
+## CLI Commands
 
 ```bash
-npx tsx src/cli/index.ts scan [path]    # Index photos from a directory
-npx tsx src/cli/index.ts stats          # Show database statistics
-npx tsx src/cli/index.ts migrate        # Run pending migrations
+npx tsx src/cli/index.ts scan [path]              # Index photos (incremental)
+npx tsx src/cli/index.ts stats                    # Collection statistics
+npx tsx src/cli/index.ts migrate                  # Run pending DB migrations
+npx tsx src/cli/index.ts ingest                   # Process inbox directory
+npx tsx src/cli/index.ts import-takeout <path>    # Import Google Takeout export
 ```
 
-## NAS details
+## Production Deployment
 
-- Photos mounted read-only at a configurable path (PM_MEDIA_ROOT)
-- Files named by content hash in semantic folder structures
-- Contains images (JPEG, PNG, HEIC), videos (MP4, MOV, etc.), and zip archives
-
-## Feature roadmap
-
-1. ~~Scanner/indexer~~ (done)
-2. API endpoints + Angular timeline view
-3. Albums (manual curation)
-4. GPS map view (Leaflet/OpenStreetMap)
-5. Face detection + person recognition (face-api.js)
-   - People nav view: horizontal scrollable face circles, click to filter
-   - Person exclusion (hidden flag): hide a person's face cluster from timeline/search/people view
-     but keep all files on disk. Photos with ONLY hidden people are filtered; mixed photos still show.
-   - Accessible via Folders view or "show hidden" toggle
-   - Three person states: **named** (visible everywhere), **hidden** (ex-wife — filtered from
-     timeline/people but files kept forever), **ignored** (strangers/background — photos still show
-     in timeline, but face circle hidden from People view to declutter the UI)
-   - Triage workflow: clusters sorted by frequency, "needs review" queue, easy name/ignore/skip per cluster
-   - "Manage ignored" toggle in People view to review/reinstate ignored faces
-   - Schema: `people (id, name, status ['named','hidden','ignored'])`,
-     `faces (id, photo_id, person_id, embedding, x, y, w, h)`
-6. Dropbox ingestion path (cron-scanned inbox)
-7. Docker image (linux/arm64 for Raspberry Pi)
-8. PWA mobile app + device pairing
-9. Phone auto-upload via Background Sync API
-
-## Target deployment: Raspberry Pi
-
-The end-goal is a Raspberry Pi (5, 8GB recommended) running as a home server,
-replacing Google Photos entirely.
-
-```
-┌─ Home Network ──────────────────────────────┐
-│                                             │
-│  ┌─────────────┐      ┌──────────────────┐  │
-│  │ Raspberry Pi │──────│  NAS (SMB/NFS)   │  │
-│  │ Docker       │      │  /photos         │  │
-│  │ photo-manager│      └──────────────────┘  │
-│  │ :3000        │                            │
-│  └──────┬──────┘                            │
-│         │                                    │
-└─────────┼────────────────────────────────────┘
-          │
-    ┌─────┴──────┐
-    │  Tailscale  │  ← mesh VPN, no port forwarding
-    └─────┬──────┘
-          │
-   ┌──────┴───────┐
-   │  Phone (PWA) │
-   │  Laptop      │
-   └──────────────┘
+```bash
+docker compose up -d          # Start (auto-restarts)
+docker compose logs -f        # View logs
+docker compose down           # Stop
+docker compose up -d --build  # Rebuild after changes
+./scripts/check-env.sh        # Pre-flight check (ports, NAS, firewall)
 ```
 
-### Pi-specific considerations
+**Ports:** Host :80 → Container :3000 (web), :8200 (DLNA), :1900/udp (SSDP)
 
-- ARM64 Docker images — build for `linux/arm64`
-- SQLite is ideal — no PostgreSQL overhead
-- Thumbnail cache on USB SSD — avoid SD card write wear
-- Scanning cron at low concurrency (2-4) to avoid overwhelming the Pi
-- sharp and face-api.js are memory-hungry — 8GB Pi recommended
+## Security
 
-### Remote access: Tailscale
+- Local network guard: rejects non-private IPs by default
+- `PM_ALLOW_REMOTE=true` to allow Tailscale/VPN access
+- DLNA is inherently local (multicast doesn't leave LAN)
+- Share links are token-based with configurable expiry
 
-Use Tailscale (free, personal) for remote access instead of exposing ports.
-Pi gets a stable `100.x.x.x` address, phone connects over mesh VPN.
-No traffic touches the public internet — the whole point is divorcing from cloud surveillance.
+## Face Detection
 
-### Mobile app: PWA (Progressive Web App)
+- face-api.js with TensorFlow.js (pure JS, no native bindings required)
+- SSD MobileNet for detection, 128-dim embeddings for recognition
+- DBSCAN clustering groups similar faces into people
+- Three person states:
+  - **named** — visible everywhere
+  - **hidden** — filtered from timeline/people, files kept forever (e.g., ex-wife)
+  - **ignored** — removed from People view, photos still show in timeline (strangers)
+- "Manage ignored" toggle to review/reinstate
+- Status buttons toggle (click again to revert to unreviewed)
+- Face scan cancellable from Settings UI
+- Auto-runs after daily cron re-index (50 photo batch)
 
-Angular PWA — no native app, no App Store:
+## TV Integration
 
-- Installable to home screen, looks and feels like a native app
-- Background Sync API for auto-uploading photos over WiFi
-- Offline browsing via cached thumbnails
-- Push notifications (scan complete, new faces detected)
-- Camera access for direct upload
+- **Slideshow:** `/tv` route — fullscreen, auto-advance, arrow keys, album filter
+- **DLNA:** Auto-discovered by smart TVs as "Photo Manager"
+- **Default TV album:** auto-created on server start, filter slideshow with `?album=ID`
+- Start/stop DLNA from Settings page
 
-### Authentication: Device pairing
+## Target Deployment: Raspberry Pi
 
-No username/password. Instead, API key via one-time pairing code:
+- Pi 5 (8GB recommended) — sharp and face-api.js are memory-hungry
+- ARM64 Docker images (`linux/arm64`)
+- SQLite — no PostgreSQL overhead
+- Thumbnail cache on USB SSD to avoid SD card wear
+- Tailscale for remote access (no port forwarding)
+- PWA installable to phone home screen
 
-1. Run `photo-manager pair` on the Pi — displays a 6-digit code
-2. Enter code in the PWA on your phone
-3. Server issues a long-lived API key tied to that device
-4. Key stored in browser secure storage, sent as `Authorization` header
-5. Revoke devices via CLI (`photo-manager devices revoke <name>`) or web UI
+## Future / Not Yet Implemented
 
-```sql
--- Future migration
-devices (id, name, api_key_hash, paired_at, last_seen, is_active)
-```
-
-### Phone auto-upload
-
-The PWA uploads new photos to `/api/ingest`, which:
-
-1. Hashes the file for deduplication
-2. Moves it into the NAS hash-based folder structure
-3. Triggers incremental scan
-4. This is the same dropbox/ingestion path — the phone is just another source
+- Phone auto-upload via Background Sync API
+- Device pairing authentication (one-time code → API key)
+- Perceptual hashing for near-duplicate detection
+- Offline map tile cache
+- Face detection in worker thread (avoid blocking API)
