@@ -38,6 +38,9 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
               class="date-input"
             />
           </label>
+          @if (dateError) {
+            <span class="date-error">{{ dateError }}</span>
+          }
         </div>
 
         <!-- Year quick-select pills -->
@@ -139,6 +142,12 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
       flex-direction: column;
       gap: 10px;
       flex-shrink: 0;
+    }
+
+    .date-error {
+      color: #e88;
+      font-size: 0.8rem;
+      margin-left: 8px;
     }
 
     .date-range {
@@ -297,6 +306,8 @@ export class TimelineComponent implements OnInit, OnDestroy {
   selectedPhoto: PhotoSummary | null = null;
   selectedPhotoFull!: Photo;
 
+  dateError = '';
+
   // Date range filter — populated dynamically from collection stats
   minDate = '';
   maxDate = new Date().toISOString().slice(0, 7);
@@ -337,6 +348,7 @@ export class TimelineComponent implements OnInit, OnDestroy {
     const input = event.target as HTMLInputElement;
     this.fromDate = input.value;
     this.activeYear = null;
+    if (!this.validateDateRange()) return;
     this.resetAndReload();
   }
 
@@ -344,7 +356,17 @@ export class TimelineComponent implements OnInit, OnDestroy {
     const input = event.target as HTMLInputElement;
     this.toDate = input.value;
     this.activeYear = null;
+    if (!this.validateDateRange()) return;
     this.resetAndReload();
+  }
+
+  private validateDateRange(): boolean {
+    if (this.fromDate && this.toDate && this.fromDate > this.toDate) {
+      this.dateError = 'From date must be before To date';
+      return false;
+    }
+    this.dateError = '';
+    return true;
   }
 
   filterByYear(year: number): void {

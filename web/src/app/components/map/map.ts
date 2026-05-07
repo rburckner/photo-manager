@@ -37,6 +37,9 @@ L.Icon.Default.mergeOptions({
             <input type="month" [value]="toDate" (change)="onToChange($event)" class="date-input" />
           </label>
           <button class="btn-reset" (click)="resetFilter()">All</button>
+          @if (dateError) {
+            <span class="date-error">{{ dateError }}</span>
+          }
         </div>
       </div>
       <div #mapEl class="map"></div>
@@ -109,6 +112,7 @@ L.Icon.Default.mergeOptions({
     }
 
     .sep { color: #555; }
+    .date-error { color: #e88; font-size: 0.8rem; }
 
     .btn-reset {
       background: #222;
@@ -196,6 +200,7 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
 
   fromDate = '';
   toDate = '';
+  dateError = '';
 
   private map: L.Map | null = null;
   private clusterLayer: L.MarkerClusterGroup | null = null;
@@ -253,12 +258,23 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
 
   onFromChange(event: Event): void {
     this.fromDate = (event.target as HTMLInputElement).value;
+    if (!this.validateDateRange()) return;
     this.renderMarkers();
   }
 
   onToChange(event: Event): void {
     this.toDate = (event.target as HTMLInputElement).value;
+    if (!this.validateDateRange()) return;
     this.renderMarkers();
+  }
+
+  private validateDateRange(): boolean {
+    if (this.fromDate && this.toDate && this.fromDate > this.toDate) {
+      this.dateError = 'From date must be before To date';
+      return false;
+    }
+    this.dateError = '';
+    return true;
   }
 
   resetFilter(): void {
