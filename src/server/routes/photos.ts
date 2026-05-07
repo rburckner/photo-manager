@@ -258,6 +258,27 @@ export async function photoRoutes(
     return photoRepo.getDuplicates();
   });
 
+  // POST /api/photos/rescan-gps — re-extract GPS from photos missing coordinates
+  app.post<{ Body: { limit?: number } }>('/api/photos/rescan-gps', async (request) => {
+    const limit = request.body?.limit ?? 500;
+    const { extractExif } = await import('../../scanner/exif.js');
+    const missing = photoRepo.getPhotosWithoutGps(limit);
+    let found = 0;
+
+    for (const photo of missing) {
+      const filePath = join(config.mediaRoot, photo.file_path);
+      if (!existsSync(filePath)) continue;
+
+      const exif = await extractExif(filePath);
+      if (exif.gpsLat !== null && exif.gpsLng !== null) {
+        photoRepo.updateGps(photo.id, exif.gpsLat, exif.gpsLng);
+        found++;
+      }
+    }
+
+    return { checked: missing.length, gpsFound: found };
+  });
+
   // POST /api/embeddings/scan — start embedding scan (non-blocking)
   app.post<{ Body: { batch_size?: number } }>('/api/embeddings/scan', async (request) => {
     const batchSize = request.body?.batch_size ?? 50;

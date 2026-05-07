@@ -75,6 +75,25 @@ import type { CollectionStats } from '../../models/photo.model';
         }
       </div>
 
+      <!-- GPS Re-scan -->
+      <div class="setting-section">
+        <h3>GPS Coordinates</h3>
+        <p class="section-desc">
+          Re-extract GPS data from photos. Use this after fixing the GPS parser
+          to populate coordinates for photos that were previously missed.
+        </p>
+        <div class="action-row">
+          <button class="btn-action" (click)="rescanGps()" [disabled]="gpsRunning">
+            {{ gpsRunning ? 'Scanning...' : 'Re-scan GPS Data' }}
+          </button>
+        </div>
+        @if (gpsResult) {
+          <div class="result-msg">
+            Checked {{ gpsResult.checked }}, found GPS in {{ gpsResult.gpsFound }} photos
+          </div>
+        }
+      </div>
+
       <!-- Visual Similarity -->
       <div class="setting-section">
         <h3>Visual Similarity</h3>
@@ -370,6 +389,8 @@ export class SettingsComponent implements OnInit {
   faceScanRunning = false;
   faceScanResult: { scanned: number; facesFound: number } | null = null;
   clusteringRunning = false;
+  gpsRunning = false;
+  gpsResult: { checked: number; gpsFound: number } | null = null;
   embeddingRunning = true; // assume running until status confirms otherwise
   embeddingStatus: { running: boolean; total: number; embedded: number; remaining: number } | null = null;
   thumbsRunning = false;
@@ -419,6 +440,15 @@ export class SettingsComponent implements OnInit {
       }
       this.cdr.detectChanges();
     }});
+  }
+
+  rescanGps(): void {
+    this.gpsRunning = true;
+    this.gpsResult = null;
+    this.api.rescanGps(1000).subscribe({
+      next: (r) => { this.gpsResult = r; this.gpsRunning = false; this.cdr.detectChanges(); },
+      error: () => { this.gpsRunning = false; },
+    });
   }
 
   runEmbeddingScan(): void {

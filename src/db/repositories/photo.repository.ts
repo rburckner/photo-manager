@@ -112,6 +112,19 @@ export class PhotoRepository {
     ).all(...params) as PhotoRow[];
   }
 
+  getPhotosWithoutGps(limit: number): Array<{ id: number; file_path: string }> {
+    return this.db.prepare(`
+      SELECT id, file_path FROM photos
+      WHERE gps_lat IS NULL AND is_video = 0
+      ORDER BY id DESC
+      LIMIT ?
+    `).all(limit) as Array<{ id: number; file_path: string }>;
+  }
+
+  updateGps(id: number, lat: number, lng: number): void {
+    this.db.prepare('UPDATE photos SET gps_lat = ?, gps_lng = ? WHERE id = ?').run(lat, lng, id);
+  }
+
   getPhotosWithoutThumbnails(limit: number): Array<{ id: number; file_path: string; file_name: string; is_video: number }> {
     return this.db.prepare(`
       SELECT id, file_path, file_name, is_video FROM photos

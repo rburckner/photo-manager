@@ -81,6 +81,10 @@ export class ApiService {
     return this.http.get<Photo[]>(`${this.baseUrl}/photos/bad-dates`, { params: { limit: limit.toString() } });
   }
 
+  rescanGps(limit: number = 500): Observable<{ checked: number; gpsFound: number }> {
+    return this.http.post<{ checked: number; gpsFound: number }>(`${this.baseUrl}/photos/rescan-gps`, { limit });
+  }
+
   findVisuallySimilar(id: number, limit: number = 30): Observable<Array<Photo & { similarity: number }>> {
     return this.http.get<Array<Photo & { similarity: number }>>(`${this.baseUrl}/photos/${id}/visually-similar`, { params: { limit: limit.toString() } });
   }
