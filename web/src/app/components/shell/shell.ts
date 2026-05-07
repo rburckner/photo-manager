@@ -3,18 +3,20 @@ import { CommonModule } from '@angular/common';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { SelectionBarComponent } from '../selection-bar/selection-bar';
 import { ShortcutsComponent } from '../shortcuts/shortcuts';
+import { NotificationBellComponent } from '../notification-bell/notification-bell';
 import { ToastComponent } from '../toast/toast';
 import { SettingsService } from '../../services/settings.service';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, SelectionBarComponent, ShortcutsComponent, ToastComponent],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, SelectionBarComponent, ShortcutsComponent, ToastComponent, NotificationBellComponent],
   template: `
     <div class="shell">
       <nav class="sidebar">
         <div class="logo">
           <h1>Photos</h1>
+          <app-notification-bell />
         </div>
         <ul class="nav-links">
           <li>
@@ -121,6 +123,9 @@ import { SettingsService } from '../../services/settings.service';
     .logo {
       padding: 20px;
       border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
 
       h1 {
         margin: 0;

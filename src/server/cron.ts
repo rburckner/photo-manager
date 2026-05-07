@@ -181,10 +181,26 @@ export function startCronReindex(
         log.warn({ error: embErr instanceof Error ? embErr.message : String(embErr) }, 'Embedding scan after re-index failed');
       }
       cronLastResult = 'Completed successfully';
+
+      // Send notification
+      try {
+        const { createNotification } = await import('./routes/notifications.js');
+        const { getDb } = await import('../db/connection.js');
+        const notifDb = getDb(config.dbPath);
+        createNotification(notifDb, 'cron', 'Daily re-index complete',
+          `Processed ${result.processedFiles} files, skipped ${result.skippedFiles}`);
+      } catch { /* ignore */ }
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       log.error({ error }, 'Daily re-index failed');
       cronLastResult = `Failed: ${error}`;
+
+      try {
+        const { createNotification } = await import('./routes/notifications.js');
+        const { getDb } = await import('../db/connection.js');
+        const notifDb = getDb(config.dbPath);
+        createNotification(notifDb, 'error', 'Daily re-index failed', error);
+      } catch { /* ignore */ }
     }
     cronRunning = false;
   }

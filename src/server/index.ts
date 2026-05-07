@@ -17,6 +17,7 @@ import { shareRoutes } from './routes/shares.js';
 import { FaceRepository } from '../db/repositories/face.repository.js';
 import { TagRepository } from '../db/repositories/tag.repository.js';
 import { authRoutes, createAuthMiddleware } from './routes/auth.js';
+import { notificationRoutes } from './routes/notifications.js';
 import { startDlnaServer } from './dlna.js';
 import { startInboxWatcher } from '../ingestion/index.js';
 import { startCronReindex } from './cron.js';
@@ -97,6 +98,7 @@ async function start(): Promise<void> {
   await app.register(tagRoutes, { tagRepo, photoRepo });
   await app.register(shareRoutes, { db, photoRepo, albumRepo, config });
   await app.register(authRoutes, { db });
+  await app.register(notificationRoutes, { db });
 
   // Optional auth middleware (enabled via Settings → auth_required=true)
   const authMiddleware = createAuthMiddleware(db);

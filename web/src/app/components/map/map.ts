@@ -6,6 +6,7 @@ import 'leaflet.markercluster';
 import { ApiService } from '../../services/api.service';
 import { FilterService } from '../../services/filter.service';
 import { LightboxComponent } from '../lightbox/lightbox';
+import { getCachedTile, cacheTile } from '../../services/tile-cache.service';
 import type { MapPoint, Photo } from '../../models/photo.model';
 
 // Fix Leaflet default icon paths (broken by bundlers)
@@ -240,7 +241,29 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
       zoomControl: true,
     });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Tile layer with IndexedDB caching for offline use
+    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
+    const CachedTileLayer = (L.TileLayer as any).extend({
+      createTile(coords: any, done: any) {
+        const tile = document.createElement('img');
+        const url = (this as any).getTileUrl(coords);
+        getCachedTile(url).then((cached: Blob | null) => {
+          if (cached) {
+            tile.src = URL.createObjectURL(cached);
+          } else {
+            fetch(url).then((r: Response) => r.blob()).then((blob: Blob) => {
+              void cacheTile(url, blob);
+              tile.src = URL.createObjectURL(blob);
+            }).catch(() => { tile.src = url; });
+          }
+          done(null, tile);
+        }).catch(() => { tile.src = url; done(null, tile); });
+        return tile;
+      },
+    });
+    /* eslint-enable */
+
+    new CachedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 19,
     }).addTo(this.map);

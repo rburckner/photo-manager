@@ -350,6 +350,23 @@ export class ApiService {
     return this.http.post<{ ok: boolean }>(`${this.baseUrl}/cron/trigger`, {});
   }
 
+  // Notifications
+  getNotifications(limit: number = 20): Observable<Array<{ id: number; type: string; title: string; message: string | null; read: number; created_at: string }>> {
+    return this.http.get<Array<{ id: number; type: string; title: string; message: string | null; read: number; created_at: string }>>(`${this.baseUrl}/notifications`, { params: { limit: limit.toString() } });
+  }
+
+  getUnreadCount(): Observable<{ count: number }> {
+    return this.http.get<{ count: number }>(`${this.baseUrl}/notifications/unread-count`);
+  }
+
+  markNotificationRead(id: number): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/notifications/${id}/read`, {});
+  }
+
+  markAllNotificationsRead(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/notifications/read-all`, {});
+  }
+
   // Activity log
   getActivityLog(): Observable<Array<{ id: number; action: string; details: string; timestamp: string }>> {
     return this.http.get<Array<{ id: number; action: string; details: string; timestamp: string }>>(`${this.baseUrl}/activity`);

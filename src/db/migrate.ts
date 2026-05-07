@@ -8,6 +8,7 @@ import * as m005 from './migrations/005_settings.js';
 import * as m006 from './migrations/006_devices.js';
 import * as m007 from './migrations/007_hidden_photos.js';
 import * as m008 from './migrations/008_image_embeddings.js';
+import * as m009 from './migrations/009_notifications.js';
 
 interface Migration {
   name: string;
@@ -23,6 +24,7 @@ const migrations: Migration[] = [
   m006,
   m007,
   m008,
+  m009,
 ];
 
 export function runMigrations(db: Database.Database): void {
