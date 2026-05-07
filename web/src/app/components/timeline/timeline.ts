@@ -338,6 +338,8 @@ export class TimelineComponent implements OnInit, OnDestroy {
     });
 
     this.loadMore();
+
+    this.selection.refresh$.subscribe(() => this.resetAndReload());
   }
 
   ngOnDestroy(): void {

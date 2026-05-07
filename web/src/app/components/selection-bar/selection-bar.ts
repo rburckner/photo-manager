@@ -223,6 +223,7 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
       next: () => {
         this.actionMessage = `${hidden ? 'Hidden' : 'Unhidden'} ${ids.length} photos`;
         this.selection.exitSelectionMode();
+        this.selection.notifyRefresh();
         this.cdr.detectChanges();
         setTimeout(() => { this.actionMessage = ''; this.cdr.detectChanges(); }, 2000);
       },

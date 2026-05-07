@@ -14,9 +14,7 @@ import type { Photo } from '../../models/photo.model';
       <div class="hidden-header">
         <h2>Hidden Photos</h2>
         <span class="count">{{ totalPhotos }} hidden</span>
-        @if (selection.count > 0) {
-          <button class="btn-unhide" (click)="unhideSelected()">Unhide {{ selection.count }} selected</button>
-        }
+        <span class="hint">Select photos and use the Unhide button in the toolbar above</span>
       </div>
 
       <div class="photo-grid" (scroll)="onScroll($event)">
@@ -82,6 +80,15 @@ export class HiddenComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.selection.enterSelectionMode();
     this.load();
+
+    this.selection.refresh$.subscribe(() => {
+      this.photos = [];
+      this.page = 1;
+      this.hasMore = true;
+      this.totalPhotos = 0;
+      this.load();
+      this.selection.enterSelectionMode();
+    });
   }
 
   ngOnDestroy(): void {
@@ -117,19 +124,7 @@ export class HiddenComponent implements OnInit, OnDestroy {
   }
 
   unhideSelected(): void {
-    const ids = this.selection.ids;
-    this.api.bulkHide(ids, false).subscribe({
-      next: () => {
-        this.selection.clear();
-        this.selection.enterSelectionMode();
-        // Reload the full list
-        this.photos = [];
-        this.page = 1;
-        this.hasMore = true;
-        this.totalPhotos = 0;
-        this.load();
-      },
-    });
+    // Handled by selection bar's bulkHide → notifyRefresh → refresh$ subscription
   }
 
   closeLightbox(): void { this.selectedPhoto = null; }

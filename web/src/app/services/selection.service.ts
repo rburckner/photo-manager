@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class SelectionService {
@@ -9,6 +9,14 @@ export class SelectionService {
 
   readonly selectionMode$ = this.selectionModeSubject.asObservable();
   readonly selectionCount$ = this.selectionCountSubject.asObservable();
+
+  // Emits when a bulk action changes photo visibility (hide/unhide/delete)
+  private readonly refreshSubject = new Subject<void>();
+  readonly refresh$ = this.refreshSubject.asObservable();
+
+  notifyRefresh(): void {
+    this.refreshSubject.next();
+  }
 
   get isSelecting(): boolean {
     return this.selectionModeSubject.value;
