@@ -69,6 +69,10 @@ export class ApiService {
   }
 
   // Favorites
+  bulkFavorite(ids: number[], value: boolean): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/bulk/favorite`, { photo_ids: ids, value });
+  }
+
   toggleFavorite(id: number): Observable<{ id: number; is_favorite: boolean }> {
     return this.http.post<{ id: number; is_favorite: boolean }>(`${this.baseUrl}/photos/${id}/favorite`, {});
   }

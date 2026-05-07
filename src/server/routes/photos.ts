@@ -159,6 +159,16 @@ export async function photoRoutes(
     return photoRepo.getFolders();
   });
 
+  // POST /api/photos/bulk/favorite — bulk set favorite
+  app.post<{ Body: { photo_ids: number[]; value: boolean } }>('/api/photos/bulk/favorite', async (request, reply) => {
+    const { photo_ids, value } = request.body;
+    if (!Array.isArray(photo_ids) || photo_ids.length === 0) {
+      return reply.code(400).send({ error: 'photo_ids array is required' });
+    }
+    photoRepo.bulkSetFavorite(photo_ids, value);
+    return { ok: true, count: photo_ids.length };
+  });
+
   // POST /api/photos/:id/favorite — toggle favorite
   app.post<{ Params: { id: string } }>('/api/photos/:id/favorite', async (request, reply) => {
     const id = parseInt(request.params.id, 10);

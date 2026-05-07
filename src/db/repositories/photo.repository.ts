@@ -99,6 +99,16 @@ export class PhotoRepository {
     ).all(...params) as PhotoRow[];
   }
 
+  bulkSetFavorite(ids: number[], value: boolean): void {
+    const stmt = this.db.prepare('UPDATE photos SET is_favorite = ? WHERE id = ?');
+    const run = this.db.transaction((photoIds: number[]) => {
+      for (const id of photoIds) {
+        stmt.run(value ? 1 : 0, id);
+      }
+    });
+    run(ids);
+  }
+
   toggleFavorite(id: number): boolean {
     const photo = this.findById(id);
     if (!photo) return false;

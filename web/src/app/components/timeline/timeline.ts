@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, ElementRef, ViewChild, ChangeDetectorRef 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { SelectionService } from '../../services/selection.service';
 import { LightboxComponent } from '../lightbox/lightbox';
 import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.model';
 
@@ -74,8 +75,13 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
                 <div
                   class="photo-card"
                   [class.video]="photo.is_video === 1"
-                  (click)="openPhoto(photo)"
+                  [class.selectable]="selection.isSelecting"
+                  [class.selected]="selection.isSelected(photo.id)"
+                  (click)="onPhotoClick(photo, $event)"
                 >
+                  @if (selection.isSelecting) {
+                    <div class="select-check">&#10003;</div>
+                  }
                   <img
                     [src]="getThumbnailUrl(photo.id)"
                     [alt]="photo.file_name"
@@ -299,7 +305,11 @@ export class TimelineComponent implements OnInit, OnDestroy {
   private currentPage = 0;
   private readonly pageSize = 100;
 
-  constructor(private readonly api: ApiService, private readonly cdr: ChangeDetectorRef) {}
+  constructor(
+    private readonly api: ApiService,
+    private readonly cdr: ChangeDetectorRef,
+    public readonly selection: SelectionService,
+  ) {}
 
   ngOnInit(): void {
     // Fetch actual date range from collection stats
@@ -415,6 +425,41 @@ export class TimelineComponent implements OnInit, OnDestroy {
     if (el.scrollHeight - el.scrollTop - el.clientHeight < threshold) {
       this.loadMore();
     }
+  }
+
+  private lastClickedId: number | null = null;
+
+  onPhotoClick(photo: PhotoSummary, event: MouseEvent): void {
+    // Ctrl/Cmd+click: toggle single selection
+    if (event.ctrlKey || event.metaKey) {
+      this.selection.toggle(photo.id);
+      this.lastClickedId = photo.id;
+      return;
+    }
+
+    // Shift+click: range select from last clicked
+    if (event.shiftKey && this.lastClickedId !== null && this.selection.isSelecting) {
+      const allPhotos = this.groups.flatMap((g) => g.photos);
+      const startIdx = allPhotos.findIndex((p) => p.id === this.lastClickedId);
+      const endIdx = allPhotos.findIndex((p) => p.id === photo.id);
+      if (startIdx >= 0 && endIdx >= 0) {
+        const from = Math.min(startIdx, endIdx);
+        const to = Math.max(startIdx, endIdx);
+        const rangeIds = allPhotos.slice(from, to + 1).map((p) => p.id);
+        this.selection.selectAll(rangeIds);
+      }
+      return;
+    }
+
+    // In selection mode: toggle
+    if (this.selection.isSelecting) {
+      this.selection.toggle(photo.id);
+      this.lastClickedId = photo.id;
+      return;
+    }
+
+    // Normal click: open lightbox
+    this.openPhoto(photo);
   }
 
   openPhoto(photo: PhotoSummary): void {

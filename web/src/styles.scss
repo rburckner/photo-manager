@@ -30,3 +30,48 @@ html, body {
     background: #555;
   }
 }
+
+/* ── Placeholder image for loading/missing thumbnails ── */
+.photo-card img[src=""],
+.photo-card img:not([src]) {
+  display: none;
+}
+
+.photo-card {
+  background: #222 url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23444"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>') center center / 40% no-repeat;
+}
+
+/* ── Selection mode ── */
+.photo-card.selectable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.photo-card .select-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.5);
+  background: rgba(0,0,0,0.3);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: transparent;
+  transition: all 0.15s;
+}
+
+.photo-card.selected .select-check {
+  background: #3a7bd5;
+  border-color: #3a7bd5;
+  color: #fff;
+}
+
+.photo-card.selected {
+  outline: 3px solid #3a7bd5;
+  outline-offset: -3px;
+}
