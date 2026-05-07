@@ -99,6 +99,33 @@ export class PhotoRepository {
     ).all(...params) as PhotoRow[];
   }
 
+  getMapPoints(limit: number): Array<{ id: number; gps_lat: number; gps_lng: number; date_taken: string | null; thumbnail_path: string | null; is_video: number }> {
+    return this.db.prepare(`
+      SELECT id, gps_lat, gps_lng, date_taken, thumbnail_path, is_video
+      FROM photos
+      WHERE gps_lat IS NOT NULL AND gps_lng IS NOT NULL
+      ORDER BY date_taken DESC
+      LIMIT ?
+    `).all(limit) as Array<{ id: number; gps_lat: number; gps_lng: number; date_taken: string | null; thumbnail_path: string | null; is_video: number }>;
+  }
+
+  search(query: string, limit: number, offset: number): { photos: PhotoRow[]; total: number } {
+    const pattern = `%${query}%`;
+    const photos = this.db.prepare(`
+      SELECT * FROM photos
+      WHERE file_name LIKE ? OR folder_path LIKE ? OR camera_make LIKE ? OR camera_model LIKE ?
+      ORDER BY COALESCE(date_taken, date_modified) DESC
+      LIMIT ? OFFSET ?
+    `).all(pattern, pattern, pattern, pattern, limit, offset) as PhotoRow[];
+
+    const total = (this.db.prepare(`
+      SELECT count(*) as count FROM photos
+      WHERE file_name LIKE ? OR folder_path LIKE ? OR camera_make LIKE ? OR camera_model LIKE ?
+    `).get(pattern, pattern, pattern, pattern) as { count: number }).count;
+
+    return { photos, total };
+  }
+
   getFolders(): Array<{ folder_path: string; count: number }> {
     return this.db.prepare(
       'SELECT folder_path, count(*) as count FROM photos GROUP BY folder_path ORDER BY folder_path',

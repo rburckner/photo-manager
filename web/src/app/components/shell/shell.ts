@@ -30,6 +30,18 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
               Albums
             </a>
           </li>
+          <li>
+            <a routerLink="/map" routerLinkActive="active">
+              <span class="icon">&#127758;</span>
+              Map
+            </a>
+          </li>
+          <li>
+            <a routerLink="/search" routerLinkActive="active">
+              <span class="icon">&#128269;</span>
+              Search
+            </a>
+          </li>
         </ul>
       </nav>
       <main class="content">

@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import type { Photo, TimelineResponse, CollectionStats, PaginatedResponse, FolderEntry, Album } from '../models/photo.model';
+import type { Photo, TimelineResponse, CollectionStats, PaginatedResponse, FolderEntry, Album, MapPoint } from '../models/photo.model';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -66,6 +66,16 @@ export class ApiService {
 
   removePhotosFromAlbum(albumId: number, photoIds: number[]): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/albums/${albumId}/photos`, { body: { photo_ids: photoIds } });
+  }
+
+  // Map & Search
+  getMapPoints(limit: number = 5000): Observable<MapPoint[]> {
+    return this.http.get<MapPoint[]>(`${this.baseUrl}/photos/map`, { params: { limit: limit.toString() } });
+  }
+
+  searchPhotos(query: string, page: number = 1, limit: number = 50): Observable<PaginatedResponse<Photo>> {
+    const params = new HttpParams().set('q', query).set('page', page.toString()).set('limit', limit.toString());
+    return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/photos/search`, { params });
   }
 
   getThumbnailUrl(id: number): string {

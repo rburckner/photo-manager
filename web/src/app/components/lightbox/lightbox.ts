@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
-import type { Photo } from '../../models/photo.model';
+import type { Photo, Album } from '../../models/photo.model';
 
 @Component({
   selector: 'app-lightbox',
@@ -109,8 +109,33 @@ import type { Photo } from '../../models/photo.model';
         <button class="btn-info" [class.active]="showInfo" (click)="toggleInfo()">
           &#9432;
         </button>
+        <button class="btn-album" [class.active]="showAlbumPicker" (click)="toggleAlbumPicker()">
+          &#43;
+        </button>
         <button class="btn-prev" (click)="prev.emit()">&lsaquo;</button>
         <button class="btn-next" (click)="next.emit()">&rsaquo;</button>
+
+        <!-- Album picker -->
+        @if (showAlbumPicker) {
+          <div class="album-picker">
+            <div class="picker-header">Add to Album</div>
+            @if (albums.length === 0) {
+              <div class="picker-empty">No albums yet</div>
+            }
+            @for (album of albums; track album.id) {
+              <button
+                class="picker-item"
+                [class.added]="addedAlbumIds.has(album.id)"
+                (click)="addToAlbum(album)"
+              >
+                <span class="picker-name">{{ album.name }}</span>
+                @if (addedAlbumIds.has(album.id)) {
+                  <span class="picker-check">&#10003;</span>
+                }
+              </button>
+            }
+          </div>
+        }
 
       </div>
     </div>
@@ -199,7 +224,7 @@ import type { Photo } from '../../models/photo.model';
     }
 
     /* ── Buttons ── */
-    .btn-close, .btn-info, .btn-prev, .btn-next {
+    .btn-close, .btn-info, .btn-album, .btn-prev, .btn-next {
       position: absolute;
       background: rgba(0, 0, 0, 0.5);
       border: none;
@@ -231,9 +256,74 @@ import type { Photo } from '../../models/photo.model';
       font-size: 1.2rem;
       z-index: 10;
 
-      &.active {
-        background: rgba(255, 255, 255, 0.2);
+      &.active { background: rgba(255, 255, 255, 0.2); }
+    }
+
+    .btn-album {
+      top: 8px;
+      right: 96px;
+      width: 36px;
+      height: 36px;
+      font-size: 1.4rem;
+      z-index: 10;
+
+      &.active { background: rgba(255, 255, 255, 0.2); }
+    }
+
+    /* ── Album picker ── */
+    .album-picker {
+      position: absolute;
+      top: 50px;
+      right: 96px;
+      background: #222;
+      border: 1px solid #444;
+      border-radius: 8px;
+      width: 220px;
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 20;
+    }
+
+    .picker-header {
+      padding: 10px 14px;
+      font-size: 0.8rem;
+      color: #888;
+      border-bottom: 1px solid #333;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .picker-empty {
+      padding: 16px;
+      color: #555;
+      text-align: center;
+      font-size: 0.85rem;
+    }
+
+    .picker-item {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      padding: 8px 14px;
+      background: none;
+      border: none;
+      color: #ccc;
+      cursor: pointer;
+      font-size: 0.85rem;
+      text-align: left;
+
+      &:hover { background: #2a2a2a; }
+
+      &.added {
+        color: #6cacf0;
       }
+    }
+
+    .picker-name { flex: 1; }
+
+    .picker-check {
+      color: #6cacf0;
+      font-size: 0.9rem;
     }
 
     .btn-prev, .btn-next {
@@ -256,6 +346,9 @@ export class LightboxComponent implements OnInit, OnDestroy {
 
   fullPhoto: Photo | null = null;
   showInfo = false;
+  showAlbumPicker = false;
+  albums: Album[] = [];
+  addedAlbumIds = new Set<number>();
 
   private keyHandler: ((e: KeyboardEvent) => void) | null = null;
 
@@ -301,9 +394,34 @@ export class LightboxComponent implements OnInit, OnDestroy {
 
   toggleInfo(): void {
     this.showInfo = !this.showInfo;
+    this.showAlbumPicker = false;
     if (this.showInfo && !this.fullPhoto) {
       this.loadFullPhoto();
     }
+  }
+
+  toggleAlbumPicker(): void {
+    this.showAlbumPicker = !this.showAlbumPicker;
+    this.showInfo = false;
+    if (this.showAlbumPicker && this.albums.length === 0) {
+      this.api.getAlbums().subscribe({
+        next: (albums) => {
+          this.albums = albums;
+          this.cdr.detectChanges();
+        },
+      });
+    }
+  }
+
+  addToAlbum(album: Album): void {
+    if (this.addedAlbumIds.has(album.id)) return;
+
+    this.api.addPhotosToAlbum(album.id, [this.photo.id]).subscribe({
+      next: () => {
+        this.addedAlbumIds.add(album.id);
+        this.cdr.detectChanges();
+      },
+    });
   }
 
   formatCamera(make: string | null, model: string | null): string {

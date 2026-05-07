@@ -18,6 +18,14 @@ export const routes: Routes = [
         path: 'albums',
         loadComponent: () => import('./components/albums/albums').then((m) => m.AlbumsComponent),
       },
+      {
+        path: 'map',
+        loadComponent: () => import('./components/map/map').then((m) => m.MapComponent),
+      },
+      {
+        path: 'search',
+        loadComponent: () => import('./components/search/search').then((m) => m.SearchComponent),
+      },
     ],
   },
 ];

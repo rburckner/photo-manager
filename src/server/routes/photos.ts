@@ -159,6 +159,35 @@ export async function photoRoutes(
     return photoRepo.getFolders();
   });
 
+  // GET /api/photos/map — photos with GPS coordinates for map view
+  app.get<{
+    Querystring: { limit?: string };
+  }>('/api/photos/map', async (request) => {
+    const limit = Math.min(10000, parseInt(request.query.limit ?? '5000', 10));
+    return photoRepo.getMapPoints(limit);
+  });
+
+  // GET /api/photos/search — search photos
+  app.get<{
+    Querystring: { q: string; page?: string; limit?: string };
+  }>('/api/photos/search', async (request, reply) => {
+    const query = request.query.q?.trim();
+    if (!query) {
+      return reply.code(400).send({ error: 'Query parameter q is required' });
+    }
+
+    const page = Math.max(1, parseInt(request.query.page ?? '1', 10));
+    const limit = Math.min(200, Math.max(1, parseInt(request.query.limit ?? '50', 10)));
+    const offset = (page - 1) * limit;
+
+    const { photos, total } = photoRepo.search(query, limit, offset);
+
+    return {
+      photos,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+  });
+
   // GET /api/stats — collection statistics
   app.get('/api/stats', async () => {
     return photoRepo.getStats();

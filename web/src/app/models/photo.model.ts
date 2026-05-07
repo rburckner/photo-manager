@@ -70,6 +70,15 @@ export interface FolderTreeNode {
   expanded: boolean;
 }
 
+export interface MapPoint {
+  id: number;
+  gps_lat: number;
+  gps_lng: number;
+  date_taken: string | null;
+  thumbnail_path: string | null;
+  is_video: number;
+}
+
 export interface Album {
   id: number;
   name: string;
