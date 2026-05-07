@@ -115,6 +115,18 @@ export function startCronReindex(
           log.warn({ error: faceErr instanceof Error ? faceErr.message : String(faceErr) }, 'Face scan after re-index failed');
         }
       }
+      // Generate visual embeddings for new photos (batch of 100)
+      try {
+        const { runEmbeddingScan } = await import('../scanner/embeddings.js');
+        const { getDb } = await import('../db/connection.js');
+        const embDb = getDb(config.dbPath);
+        const embResult = await runEmbeddingScan(embDb, config, 100);
+        if (embResult.embedded > 0) {
+          log.info({ scanned: embResult.scanned, embedded: embResult.embedded }, 'Post-index embedding scan complete');
+        }
+      } catch (embErr) {
+        log.warn({ error: embErr instanceof Error ? embErr.message : String(embErr) }, 'Embedding scan after re-index failed');
+      }
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       log.error({ error }, 'Daily re-index failed');

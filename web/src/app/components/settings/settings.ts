@@ -388,16 +388,39 @@ export class SettingsComponent implements OnInit {
     this.settingsService.set(key, checked ? 'true' : 'false');
   }
 
+  private embeddingTotalScanned = 0;
+  private embeddingTotalEmbedded = 0;
+
   runEmbeddingScan(): void {
     this.embeddingRunning = true;
     this.embeddingResult = null;
+    this.embeddingTotalScanned = 0;
+    this.embeddingTotalEmbedded = 0;
+    this.runEmbeddingBatch();
+  }
+
+  private runEmbeddingBatch(): void {
     this.api.runEmbeddingScan(50).subscribe({
-      next: (r) => { this.embeddingResult = r; this.embeddingRunning = false; this.cdr.detectChanges(); },
-      error: () => { this.embeddingRunning = false; },
+      next: (r) => {
+        this.embeddingTotalScanned += r.scanned;
+        this.embeddingTotalEmbedded += r.embedded;
+        this.embeddingResult = { scanned: this.embeddingTotalScanned, embedded: this.embeddingTotalEmbedded };
+        this.cdr.detectChanges();
+
+        // Auto-continue if there are more photos and not cancelled
+        if (r.scanned > 0 && r.embedded > 0 && this.embeddingRunning) {
+          setTimeout(() => this.runEmbeddingBatch(), 100);
+        } else {
+          this.embeddingRunning = false;
+          this.cdr.detectChanges();
+        }
+      },
+      error: () => { this.embeddingRunning = false; this.cdr.detectChanges(); },
     });
   }
 
   cancelEmbedding(): void {
+    this.embeddingRunning = false;
     this.api.cancelEmbeddingScan().subscribe();
   }
 

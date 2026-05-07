@@ -35,7 +35,7 @@ interface YearMonth {
                 [class.selected]="selectedIds.has(photo.id)"
                 draggable="true"
                 (dragstart)="onDragStart($event, photo)"
-                (click)="toggleSelect(photo.id)"
+                (click)="onPhotoClick(photo, $event)"
               >
                 <img
                   [src]="api.getThumbnailUrl(photo.id)"
@@ -290,6 +290,7 @@ export class FixDatesComponent implements OnInit {
   thumbSize = 120;
 
   private draggedIds: number[] = [];
+  private lastClickedId: number | null = null;
 
   constructor(
     public readonly api: ApiService,
@@ -334,12 +335,28 @@ export class FixDatesComponent implements OnInit {
     this.buildMonths();
   }
 
-  toggleSelect(id: number): void {
-    if (this.selectedIds.has(id)) {
-      this.selectedIds.delete(id);
-    } else {
-      this.selectedIds.add(id);
+  onPhotoClick(photo: Photo, event: MouseEvent): void {
+    // Shift+click: range select
+    if (event.shiftKey && this.lastClickedId !== null) {
+      const startIdx = this.photos.findIndex((p) => p.id === this.lastClickedId);
+      const endIdx = this.photos.findIndex((p) => p.id === photo.id);
+      if (startIdx >= 0 && endIdx >= 0) {
+        const from = Math.min(startIdx, endIdx);
+        const to = Math.max(startIdx, endIdx);
+        for (let i = from; i <= to; i++) {
+          this.selectedIds.add(this.photos[i]!.id);
+        }
+      }
+      return;
     }
+
+    // Normal click or ctrl+click: toggle
+    if (this.selectedIds.has(photo.id)) {
+      this.selectedIds.delete(photo.id);
+    } else {
+      this.selectedIds.add(photo.id);
+    }
+    this.lastClickedId = photo.id;
   }
 
   onDragStart(event: DragEvent, photo: Photo): void {
