@@ -33,9 +33,9 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
             [class.unreviewed]="person.status === 'unreviewed'"
             (click)="selectPersonSummary(person)"
           >
-            @if (person.representative_photo_id) {
+            @if (person.representative_face_id) {
               <img
-                [src]="api.getThumbnailUrl(person.representative_photo_id)"
+                [src]="getFaceCropUrl(person.representative_face_id)"
                 [alt]="person.name ?? 'Unknown'"
               />
             } @else {
@@ -397,6 +397,10 @@ export class PeopleComponent implements OnInit {
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 500) {
       this.loadPersonSummaryPhotos();
     }
+  }
+
+  getFaceCropUrl(faceId: number): string {
+    return `/api/faces/${faceId}/crop`;
   }
 
   openPhoto(photo: Photo): void { this.selectedPhoto = photo; }

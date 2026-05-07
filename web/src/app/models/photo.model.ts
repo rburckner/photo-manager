@@ -93,6 +93,7 @@ export interface PersonSummary {
   name: string | null;
   status: string;
   photo_count: number;
+  representative_face_id: number | null;
   representative_photo_id: number | null;
   face_box: { x: number; y: number; width: number; height: number } | null;
 }

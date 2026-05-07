@@ -21,6 +21,7 @@ export async function faceRoutes(
       const face = faceRepo.getRepresentativeFace(person.id);
       return {
         ...person,
+        representative_face_id: face?.id ?? null,
         representative_photo_id: face?.photo_id ?? null,
         face_box: face ? { x: face.x, y: face.y, width: face.width, height: face.height } : null,
       };
@@ -34,6 +35,7 @@ export async function faceRoutes(
       const face = faceRepo.getRepresentativeFace(person.id);
       return {
         ...person,
+        representative_face_id: face?.id ?? null,
         representative_photo_id: face?.photo_id ?? null,
         face_box: face ? { x: face.x, y: face.y, width: face.width, height: face.height } : null,
       };
