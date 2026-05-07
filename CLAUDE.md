@@ -27,7 +27,7 @@ Self-hosted photo management system for ~120k family photos/videos (672GB) on a 
 │  └─────────┘  └─────────┘  └────────────────┘  │
 ├─────────────────────────────────────────────────┤
 │  Volumes:                                       │
-│  /photos (NAS, read-only)                       │
+│  /photos (NAS, read-write for ingestion)         │
 │  /data   (DB + thumbnails + face models, r/w)   │
 └─────────────────────────────────────────────────┘
 ```
@@ -111,7 +111,8 @@ web/                     # Angular 21 SPA
 - Scanner is incremental — compares file mtime to skip unchanged files
 - File hashes are the filenames (NAS naming convention), not recomputed
 - Errors in file processing are logged and skipped, never abort the scan
-- NAS is always read-only — delete only removes from DB index, never touches files
+- NAS is read-write for ingestion — existing files are never modified or deleted, only new files added via inbox
+- Delete from index only removes DB records, never touches NAS files
 - Cleanup log tracks files removed from index for manual NAS deletion
 
 ## CLI Commands

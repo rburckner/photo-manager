@@ -100,7 +100,7 @@ Docker Container (port 80)
 ├── Cron (2 AM daily)            — Re-index, thumbnails, faces, embeddings
 ├── Inbox Watcher                — Auto-import from drop directory
 └── Volumes:
-    ├── /photos (read-only)      — NAS mount
+    ├── /photos (read-write)      — NAS mount
     └── /data (read-write)       — DB, thumbnails, face models
 ```
 
@@ -149,7 +149,7 @@ Copy `.env.example` to `.env` and adjust:
 - `PM_ALLOW_REMOTE=true` for Tailscale/VPN access
 - Device pairing: `photo-manager pair` generates 6-digit codes
 - Share links: token-based with configurable expiry
-- NAS mounted read-only — files are never modified or deleted
+- NAS mounted read-write for ingestion — existing files are never modified or deleted, only new files are added via the inbox
 
 ## Raspberry Pi Deployment
 
