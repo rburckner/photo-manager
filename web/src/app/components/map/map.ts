@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import * as L from 'leaflet';
 import 'leaflet.markercluster';
 import { ApiService } from '../../services/api.service';
@@ -19,12 +20,24 @@ L.Icon.Default.mergeOptions({
 @Component({
   selector: 'app-map',
   standalone: true,
-  imports: [CommonModule, LightboxComponent],
+  imports: [CommonModule, FormsModule, LightboxComponent],
   template: `
     <div class="map-container">
       <div class="map-header">
         <h2>Map</h2>
-        <span class="point-count">{{ pointCount }} geotagged photos</span>
+        <span class="point-count">{{ filteredCount }} / {{ pointCount }} geotagged photos</span>
+        <div class="map-filters">
+          <label>
+            <span class="filter-label">From</span>
+            <input type="month" [value]="fromDate" (change)="onFromChange($event)" class="date-input" />
+          </label>
+          <span class="sep">-</span>
+          <label>
+            <span class="filter-label">To</span>
+            <input type="month" [value]="toDate" (change)="onToChange($event)" class="date-input" />
+          </label>
+          <button class="btn-reset" (click)="resetFilter()">All</button>
+        </div>
       </div>
       <div #mapEl class="map"></div>
 
@@ -61,6 +74,52 @@ L.Icon.Default.mergeOptions({
 
       h2 { margin: 0; font-size: 1.1rem; color: #ddd; }
       .point-count { font-size: 0.8rem; color: #666; }
+    }
+
+    .map-filters {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+
+      label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+    }
+
+    .filter-label {
+      font-size: 0.7rem;
+      color: #888;
+      text-transform: uppercase;
+    }
+
+    .date-input {
+      background: #222;
+      border: 1px solid #444;
+      color: #e0e0e0;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
+
+      &:focus { outline: none; border-color: #666; }
+      &::-webkit-calendar-picker-indicator { filter: invert(0.7); }
+    }
+
+    .sep { color: #555; }
+
+    .btn-reset {
+      background: #222;
+      border: 1px solid #444;
+      color: #aaa;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+
+      &:hover { background: #333; }
     }
 
     .map {
@@ -130,11 +189,16 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
 
   loading = true;
   pointCount = 0;
+  filteredCount = 0;
   selectedPhoto: Photo | null = null;
   prevPhoto = { emit: () => {} };
   nextPhoto = { emit: () => {} };
 
+  fromDate = '';
+  toDate = '';
+
   private map: L.Map | null = null;
+  private clusterLayer: L.MarkerClusterGroup | null = null;
   private points: MapPoint[] = [];
 
   constructor(
@@ -187,8 +251,50 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  onFromChange(event: Event): void {
+    this.fromDate = (event.target as HTMLInputElement).value;
+    this.renderMarkers();
+  }
+
+  onToChange(event: Event): void {
+    this.toDate = (event.target as HTMLInputElement).value;
+    this.renderMarkers();
+  }
+
+  resetFilter(): void {
+    this.fromDate = '';
+    this.toDate = '';
+    this.renderMarkers();
+  }
+
+  private getFilteredPoints(): MapPoint[] {
+    if (!this.fromDate && !this.toDate) return this.points;
+
+    return this.points.filter((p) => {
+      const date = p.date_taken?.slice(0, 7) ?? '';
+      if (!date) return false;
+      if (this.fromDate && date < this.fromDate) return false;
+      if (this.toDate && date > this.toDate) return false;
+      return true;
+    });
+  }
+
   private renderMarkers(): void {
-    if (!this.map || this.points.length === 0) return;
+    if (!this.map) return;
+
+    // Remove old cluster layer
+    if (this.clusterLayer) {
+      this.map.removeLayer(this.clusterLayer);
+      this.clusterLayer = null;
+    }
+
+    const filtered = this.getFilteredPoints();
+    this.filteredCount = filtered.length;
+
+    if (filtered.length === 0) {
+      this.cdr.detectChanges();
+      return;
+    }
 
     const cluster = L.markerClusterGroup({
       maxClusterRadius: 50,
@@ -196,7 +302,7 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
       showCoverageOnHover: false,
     });
 
-    for (const point of this.points) {
+    for (const point of filtered) {
       const marker = L.marker([point.gps_lat, point.gps_lng]);
 
       const thumbUrl = this.api.getThumbnailUrl(point.id);
@@ -227,13 +333,14 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
       cluster.addLayer(marker);
     }
 
+    this.clusterLayer = cluster;
     this.map.addLayer(cluster);
 
-    // Fit bounds to markers
-    if (this.points.length > 0) {
-      const bounds = L.latLngBounds(this.points.map((p) => [p.gps_lat, p.gps_lng] as L.LatLngTuple));
-      this.map.fitBounds(bounds, { padding: [50, 50] });
-    }
+    // Fit bounds to visible markers
+    const bounds = L.latLngBounds(filtered.map((p) => [p.gps_lat, p.gps_lng] as L.LatLngTuple));
+    this.map.fitBounds(bounds, { padding: [50, 50] });
+
+    this.cdr.detectChanges();
   }
 
   private openPhotoById(id: number): void {
