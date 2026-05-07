@@ -101,6 +101,25 @@ import type { Photo, Album } from '../../models/photo.model';
                 </div>
               </div>
             }
+
+            <!-- Tags -->
+            <div class="info-section">
+              <div class="info-label">Tags</div>
+              <div class="tag-chips">
+                @for (tag of photoTags; track tag.id) {
+                  <span class="tag-chip">
+                    {{ tag.name }}
+                    <button class="tag-remove" (click)="removeTag(tag.id)">&times;</button>
+                  </span>
+                }
+                <input
+                  type="text"
+                  class="tag-input"
+                  placeholder="Add tag..."
+                  (keydown.enter)="addTag($event)"
+                />
+              </div>
+            </div>
           </div>
         }
 
@@ -220,6 +239,50 @@ import type { Photo, Album } from '../../models/photo.model';
         word-break: break-all;
         color: #888;
       }
+    }
+
+    .tag-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .tag-chip {
+      background: #2a3a4a;
+      border: 1px solid #3a5a7a;
+      color: #8ac;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .tag-remove {
+      background: none;
+      border: none;
+      color: #688;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 0;
+      line-height: 1;
+
+      &:hover { color: #e88; }
+    }
+
+    .tag-input {
+      background: none;
+      border: 1px solid #444;
+      color: #ccc;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      width: 80px;
+
+      &:focus { outline: none; border-color: #666; }
+      &::placeholder { color: #555; }
     }
 
     .map-link {
@@ -378,6 +441,7 @@ export class LightboxComponent implements OnInit, OnDestroy {
   showAlbumPicker = false;
   albums: Album[] = [];
   addedAlbumIds = new Set<number>();
+  photoTags: Array<{ id: number; name: string }> = [];
 
   private keyHandler: ((e: KeyboardEvent) => void) | null = null;
 
@@ -389,6 +453,7 @@ export class LightboxComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.isFavorite = this.photo.is_favorite === 1;
     this.loadFullPhoto();
+    this.loadTags();
 
     this.keyHandler = (e: KeyboardEvent) => {
       switch (e.key) {
@@ -451,6 +516,33 @@ export class LightboxComponent implements OnInit, OnDestroy {
         },
       });
     }
+  }
+
+  private loadTags(): void {
+    this.api.getPhotoTags(this.photo.id).subscribe({
+      next: (tags) => { this.photoTags = tags; this.cdr.detectChanges(); },
+    });
+  }
+
+  addTag(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const name = input.value.trim();
+    if (!name) return;
+
+    // Create tag if it doesn't exist, then add to photo
+    this.api.createTag(name).subscribe({
+      next: (tag) => {
+        this.api.addTagToPhotos(tag.id, [this.photo.id]).subscribe({
+          next: () => { input.value = ''; this.loadTags(); },
+        });
+      },
+    });
+  }
+
+  removeTag(tagId: number): void {
+    this.api.removeTagFromPhotos(tagId, [this.photo.id]).subscribe({
+      next: () => { this.loadTags(); },
+    });
   }
 
   addToAlbum(album: Album): void {

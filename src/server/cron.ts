@@ -1,5 +1,6 @@
 import { PhotoRepository } from '../db/repositories/photo.repository.js';
 import { ScanProgressRepository } from '../db/repositories/scan-progress.repository.js';
+import { FaceRepository } from '../db/repositories/face.repository.js';
 import { runScan } from '../scanner/index.js';
 import type { AppConfig } from '../shared/types.js';
 import { getLogger } from '../shared/logger.js';
@@ -14,6 +15,7 @@ export function startCronReindex(
   config: AppConfig,
   photoRepo: PhotoRepository,
   scanProgressRepo: ScanProgressRepository,
+  faceRepo?: FaceRepository,
 ): void {
   const log = getLogger();
   const cronHour = parseInt(process.env['PM_CRON_HOUR'] ?? String(DEFAULT_CRON_HOUR), 10);
@@ -73,6 +75,20 @@ export function startCronReindex(
 
       if (result.processedFiles > 0) {
         log.info({ newFiles: result.processedFiles }, 'New files indexed');
+      }
+
+      // Run face detection on new photos (small batch to avoid CPU overload)
+      if (faceRepo) {
+        try {
+          const { runFaceScan, clusterFaces } = await import('../scanner/faces.js');
+          const faceResult = await runFaceScan(photoRepo, faceRepo, config, 50);
+          if (faceResult.facesFound > 0) {
+            clusterFaces(faceRepo);
+            log.info({ scanned: faceResult.scanned, facesFound: faceResult.facesFound }, 'Post-index face scan complete');
+          }
+        } catch (faceErr) {
+          log.warn({ error: faceErr instanceof Error ? faceErr.message : String(faceErr) }, 'Face scan after re-index failed');
+        }
       }
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);

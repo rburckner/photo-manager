@@ -56,6 +56,12 @@ import { SettingsService } from '../../services/settings.service';
             </a>
           </li>
           <li>
+            <a routerLink="/tags" routerLinkActive="active">
+              <span class="icon">&#127991;</span>
+              Tags
+            </a>
+          </li>
+          <li>
             <a routerLink="/favorites" routerLinkActive="active">
               <span class="icon">&#9733;</span>
               Favorites

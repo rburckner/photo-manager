@@ -263,7 +263,7 @@ export class SettingsComponent implements OnInit {
   runFaceScan(): void {
     this.faceScanRunning = true;
     this.faceScanResult = null;
-    this.api.triggerFaceScan(200).subscribe({
+    this.api.triggerFaceScan(50).subscribe({
       next: (result) => {
         this.faceScanResult = result;
         this.faceScanRunning = false;

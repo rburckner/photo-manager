@@ -115,7 +115,7 @@ async function start(): Promise<void> {
 
   // Start daily re-index cron (default 2 AM)
   const scanProgressRepo = new ScanProgressRepository(db);
-  startCronReindex(config, photoRepo, scanProgressRepo);
+  startCronReindex(config, photoRepo, scanProgressRepo, faceRepo);
 
   const shutdown = async (): Promise<void> => {
     log.info('Shutting down...');

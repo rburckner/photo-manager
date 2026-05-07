@@ -132,6 +132,36 @@ export class ApiService {
     return this.http.get<number[]>(`${this.baseUrl}/stats/distinct-years`);
   }
 
+  // Tags
+  getTags(): Observable<Array<{ id: number; name: string; color: string | null; photo_count: number }>> {
+    return this.http.get<Array<{ id: number; name: string; color: string | null; photo_count: number }>>(`${this.baseUrl}/tags`);
+  }
+
+  createTag(name: string, color?: string): Observable<{ id: number; name: string }> {
+    return this.http.post<{ id: number; name: string }>(`${this.baseUrl}/tags`, { name, color });
+  }
+
+  deleteTag(id: number): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/tags/${id}`);
+  }
+
+  getPhotoTags(photoId: number): Observable<Array<{ id: number; name: string }>> {
+    return this.http.get<Array<{ id: number; name: string }>>(`${this.baseUrl}/photos/${photoId}/tags`);
+  }
+
+  addTagToPhotos(tagId: number, photoIds: number[]): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/tags/${tagId}/photos`, { photo_ids: photoIds });
+  }
+
+  removeTagFromPhotos(tagId: number, photoIds: number[]): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/tags/${tagId}/photos`, { body: { photo_ids: photoIds } });
+  }
+
+  getTagPhotos(tagId: number, page: number = 1): Observable<PaginatedResponse<Photo>> {
+    const params = new HttpParams().set('page', page.toString());
+    return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/tags/${tagId}/photos`, { params });
+  }
+
   getCleanupLog(): Observable<Array<{ id: number; file_path: string; reason: string }>> {
     return this.http.get<Array<{ id: number; file_path: string; reason: string }>>(`${this.baseUrl}/cleanup`);
   }
