@@ -24,6 +24,10 @@ export const routes: Routes = [
         loadComponent: () => import('./components/albums/albums').then((m) => m.AlbumsComponent),
       },
       {
+        path: 'people',
+        loadComponent: () => import('./components/people/people').then((m) => m.PeopleComponent),
+      },
+      {
         path: 'map',
         loadComponent: () => import('./components/map/map').then((m) => m.MapComponent),
       },

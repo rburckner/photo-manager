@@ -33,6 +33,12 @@ import { ShortcutsComponent } from '../shortcuts/shortcuts';
             </a>
           </li>
           <li>
+            <a routerLink="/people" routerLinkActive="active">
+              <span class="icon">&#128100;</span>
+              People
+            </a>
+          </li>
+          <li>
             <a routerLink="/map" routerLinkActive="active">
               <span class="icon">&#127758;</span>
               Map
