@@ -57,7 +57,8 @@ export async function processInbox(
       // Check for duplicates
       const existing = photoRepo.findByHash(hash);
       if (existing.length > 0) {
-        log.info({ file: entry.name, hash }, 'Duplicate found, skipping');
+        log.info({ file: entry.name, hash }, 'Duplicate found, removing from inbox');
+        await unlink(filePath);
         results.push({ file: entry.name, hash, action: 'duplicate' });
         continue;
       }
@@ -125,4 +126,15 @@ export function startInboxWatcher(
   } catch {
     log.warn({ inboxDir }, 'Could not start inbox watcher — directory may not exist');
   }
+
+  // Periodic poll as fallback (fs.watch can miss events on some filesystems)
+  setInterval(() => {
+    void processInbox(inboxDir, config.mediaRoot, photoRepo).then((results) => {
+      const imported = results.filter((r) => r.action === 'imported').length;
+      const duplicates = results.filter((r) => r.action === 'duplicate').length;
+      if (imported > 0 || duplicates > 0) {
+        log.info({ imported, duplicates }, 'Inbox poll processed');
+      }
+    });
+  }, 60000); // Check every 60 seconds
 }
