@@ -172,9 +172,20 @@ export class PhotoRepository {
     return this.db.prepare(`
       SELECT strftime('%Y', COALESCE(date_taken, date_modified)) as year, count(*) as count
       FROM photos
+      WHERE COALESCE(date_taken, date_modified) > '1990-01-01'
       GROUP BY year
       ORDER BY year
     `).all() as Array<{ year: string; count: number }>;
+  }
+
+  getDistinctYears(): number[] {
+    const rows = this.db.prepare(`
+      SELECT DISTINCT CAST(strftime('%Y', COALESCE(date_taken, date_modified)) AS INTEGER) as year
+      FROM photos
+      WHERE COALESCE(date_taken, date_modified) > '1990-01-01'
+      ORDER BY year
+    `).all() as Array<{ year: number }>;
+    return rows.map((r) => r.year);
   }
 
   getStatsByCamera(): Array<{ camera: string; count: number }> {

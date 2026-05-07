@@ -312,20 +312,13 @@ export class TimelineComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // Fetch actual date range from collection stats
-    this.api.getStats().subscribe({
-      next: (stats) => {
-        const earliestYear = stats.earliestDate
-          ? new Date(stats.earliestDate).getFullYear()
-          : new Date().getFullYear();
-        const currentYear = new Date().getFullYear();
-
-        this.minDate = `${earliestYear}-01`;
-        this.fromDate = this.minDate;
-
-        this.availableYears = [];
-        for (let y = currentYear; y >= earliestYear; y--) {
-          this.availableYears.push(y);
+    // Fetch distinct years from DB (filtered, no bogus dates)
+    this.api.getDistinctYears().subscribe({
+      next: (years) => {
+        this.availableYears = [...years].reverse(); // newest first
+        if (years.length > 0) {
+          this.minDate = `${years[0]}-01`;
+          this.fromDate = this.minDate;
         }
       },
     });

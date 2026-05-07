@@ -119,6 +119,19 @@ export class ApiService {
     return this.http.post<{ imported: number; duplicates: number; errors: number }>(`${this.baseUrl}/ingest`, {});
   }
 
+  // Settings
+  getSettings(): Observable<Record<string, string>> {
+    return this.http.get<Record<string, string>>(`${this.baseUrl}/settings`);
+  }
+
+  updateSettings(settings: Record<string, string>): Observable<{ ok: boolean }> {
+    return this.http.put<{ ok: boolean }>(`${this.baseUrl}/settings`, settings);
+  }
+
+  getDistinctYears(): Observable<number[]> {
+    return this.http.get<number[]>(`${this.baseUrl}/stats/distinct-years`);
+  }
+
   getCleanupLog(): Observable<Array<{ id: number; file_path: string; reason: string }>> {
     return this.http.get<Array<{ id: number; file_path: string; reason: string }>>(`${this.baseUrl}/cleanup`);
   }

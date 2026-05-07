@@ -71,6 +71,28 @@ import type { CollectionStats } from '../../models/photo.model';
         }
       </div>
 
+      <!-- Navigation -->
+      <div class="setting-section">
+        <h3>Navigation</h3>
+        <p class="section-desc">Choose which views appear in the sidebar.</p>
+        <label class="toggle-row">
+          <input
+            type="checkbox"
+            [checked]="settings['show_folders_nav'] !== 'false'"
+            (change)="toggleSetting('show_folders_nav', $event)"
+          />
+          <span>Show Folders view</span>
+        </label>
+        <label class="toggle-row">
+          <input
+            type="checkbox"
+            [checked]="settings['show_duplicates_nav'] !== 'false'"
+            (change)="toggleSetting('show_duplicates_nav', $event)"
+          />
+          <span>Show Duplicates view</span>
+        </label>
+      </div>
+
       <!-- Cleanup -->
       <div class="setting-section">
         <h3>Pending Cleanup</h3>
@@ -173,6 +195,18 @@ import type { CollectionStats } from '../../models/photo.model';
       .cleanup-reason { color: #666; }
     }
 
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      font-size: 0.85rem;
+      color: #aaa;
+      cursor: pointer;
+
+      input { cursor: pointer; }
+    }
+
     .btn-small {
       background: #2a2a2a;
       border: 1px solid #444;
@@ -199,6 +233,8 @@ export class SettingsComponent implements OnInit {
   scanStatus: { status: string; processed_files?: number; total_files?: number } | null = null;
   cleanupItems: Array<{ id: number; file_path: string; reason: string }> = [];
 
+  settings: Record<string, string> = {};
+
   faceScanRunning = false;
   faceScanResult: { scanned: number; facesFound: number } | null = null;
   clusteringRunning = false;
@@ -214,6 +250,13 @@ export class SettingsComponent implements OnInit {
     this.api.getStats().subscribe({ next: (s) => { this.stats = s; this.cdr.detectChanges(); } });
     this.api.getScanStatus().subscribe({ next: (s) => { this.scanStatus = s; this.cdr.detectChanges(); } });
     this.api.getCleanupLog().subscribe({ next: (items) => { this.cleanupItems = items; this.cdr.detectChanges(); } });
+    this.api.getSettings().subscribe({ next: (s) => { this.settings = s; this.cdr.detectChanges(); } });
+  }
+
+  toggleSetting(key: string, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.settings[key] = checked ? 'true' : 'false';
+    this.api.updateSettings({ [key]: this.settings[key]! }).subscribe();
   }
 
   runFaceScan(): void {

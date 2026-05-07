@@ -264,9 +264,14 @@ export async function photoRoutes(
     return { photos, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   });
 
-  // GET /api/stats/years — photos by year
+  // GET /api/stats/years — photos by year (excludes pre-1990 bogus dates)
   app.get('/api/stats/years', async () => {
     return photoRepo.getStatsByYear();
+  });
+
+  // GET /api/stats/distinct-years — just the year numbers for filters
+  app.get('/api/stats/distinct-years', async () => {
+    return photoRepo.getDistinctYears();
   });
 
   // GET /api/stats/cameras — photos by camera
@@ -323,6 +328,28 @@ export async function photoRoutes(
       photos,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
+  });
+
+  // GET /api/settings — app settings
+  app.get('/api/settings', async () => {
+    const db = photoRepo['db'] as import('better-sqlite3').Database;
+    const rows = db.prepare('SELECT key, value FROM app_settings').all() as Array<{ key: string; value: string }>;
+    const settings: Record<string, string> = {};
+    for (const row of rows) {
+      settings[row.key] = row.value;
+    }
+    return settings;
+  });
+
+  // PUT /api/settings — update settings
+  app.put<{ Body: Record<string, string> }>('/api/settings', async (request) => {
+    const db = photoRepo['db'] as import('better-sqlite3').Database;
+    const stmt = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
+    const entries = Object.entries(request.body);
+    for (const [key, value] of entries) {
+      stmt.run(key, String(value));
+    }
+    return { ok: true };
   });
 
   // GET /api/stats — collection statistics

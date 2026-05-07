@@ -1,13 +1,15 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { SelectionBarComponent } from '../selection-bar/selection-bar';
 import { ShortcutsComponent } from '../shortcuts/shortcuts';
 import { ToastComponent } from '../toast/toast';
+import { ApiService } from '../../services/api.service';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, SelectionBarComponent, ShortcutsComponent, ToastComponent],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, SelectionBarComponent, ShortcutsComponent, ToastComponent],
   template: `
     <div class="shell">
       <nav class="sidebar">
@@ -21,12 +23,14 @@ import { ToastComponent } from '../toast/toast';
               Timeline
             </a>
           </li>
-          <li>
-            <a routerLink="/folders" routerLinkActive="active">
-              <span class="icon">&#128193;</span>
-              Folders
-            </a>
-          </li>
+          @if (showFolders) {
+            <li>
+              <a routerLink="/folders" routerLinkActive="active">
+                <span class="icon">&#128193;</span>
+                Folders
+              </a>
+            </li>
+          }
           <li>
             <a routerLink="/albums" routerLinkActive="active">
               <span class="icon">&#128218;</span>
@@ -185,4 +189,16 @@ import { ToastComponent } from '../toast/toast';
     }
   `],
 })
-export class ShellComponent {}
+export class ShellComponent implements OnInit {
+  showFolders = true;
+
+  constructor(private readonly api: ApiService) {}
+
+  ngOnInit(): void {
+    this.api.getSettings().subscribe({
+      next: (settings) => {
+        this.showFolders = settings['show_folders_nav'] !== 'false';
+      },
+    });
+  }
+}
