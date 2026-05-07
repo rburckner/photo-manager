@@ -99,6 +99,19 @@ export class PhotoRepository {
     ).all(...params) as PhotoRow[];
   }
 
+  getPhotosWithoutThumbnails(limit: number): Array<{ id: number; file_path: string; file_name: string; is_video: number }> {
+    return this.db.prepare(`
+      SELECT id, file_path, file_name, is_video FROM photos
+      WHERE thumbnail_path IS NULL
+      ORDER BY id DESC
+      LIMIT ?
+    `).all(limit) as Array<{ id: number; file_path: string; file_name: string; is_video: number }>;
+  }
+
+  setThumbnailPath(id: number, thumbnailPath: string): void {
+    this.db.prepare('UPDATE photos SET thumbnail_path = ? WHERE id = ?').run(thumbnailPath, id);
+  }
+
   bulkSetFavorite(ids: number[], value: boolean): void {
     const stmt = this.db.prepare('UPDATE photos SET is_favorite = ? WHERE id = ?');
     const run = this.db.transaction((photoIds: number[]) => {

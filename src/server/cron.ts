@@ -77,6 +77,31 @@ export function startCronReindex(
         log.info({ newFiles: result.processedFiles }, 'New files indexed');
       }
 
+      // Generate missing thumbnails (videos + any failed images)
+      try {
+        const { generateThumbnail } = await import('../scanner/thumbnails.js');
+        const { join } = await import('node:path');
+        const missing = photoRepo.getPhotosWithoutThumbnails(200);
+        let thumbsGenerated = 0;
+        for (const photo of missing) {
+          const filePath = join(config.mediaRoot, photo.file_path);
+          const thumbPath = await generateThumbnail(filePath, photo.file_name, photo.is_video === 1, {
+            size: config.thumbnailSize,
+            quality: config.thumbnailQuality,
+            outputDir: config.thumbnailDir,
+          });
+          if (thumbPath) {
+            photoRepo.setThumbnailPath(photo.id, thumbPath);
+            thumbsGenerated++;
+          }
+        }
+        if (thumbsGenerated > 0) {
+          log.info({ thumbsGenerated, checked: missing.length }, 'Missing thumbnails generated');
+        }
+      } catch (thumbErr) {
+        log.warn({ error: thumbErr instanceof Error ? thumbErr.message : String(thumbErr) }, 'Thumbnail backfill failed');
+      }
+
       // Run face detection on new photos (small batch to avoid CPU overload)
       if (faceRepo) {
         try {

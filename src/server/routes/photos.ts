@@ -227,6 +227,27 @@ export async function photoRoutes(
     };
   });
 
+  // POST /api/photos/generate-thumbnails — backfill missing thumbnails
+  app.post<{ Body: { limit?: number } }>('/api/photos/generate-thumbnails', async (request) => {
+    const limit = request.body?.limit ?? 100;
+    const { generateThumbnail } = await import('../../scanner/thumbnails.js');
+    const missing = photoRepo.getPhotosWithoutThumbnails(limit);
+    let generated = 0;
+
+    for (const photo of missing) {
+      const filePath = join(config.mediaRoot, photo.file_path);
+      const thumbPath = await generateThumbnail(filePath, photo.file_name, photo.is_video === 1, {
+        size: 400, quality: 80, outputDir: config.thumbnailDir,
+      });
+      if (thumbPath) {
+        photoRepo.setThumbnailPath(photo.id, thumbPath);
+        generated++;
+      }
+    }
+
+    return { checked: missing.length, generated };
+  });
+
   // GET /api/photos/duplicates — files with same hash in different paths
   app.get('/api/photos/duplicates', async () => {
     return photoRepo.getDuplicates();

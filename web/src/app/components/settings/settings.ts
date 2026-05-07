@@ -31,6 +31,24 @@ import type { CollectionStats } from '../../models/photo.model';
         }
       </div>
 
+      <!-- Thumbnails -->
+      <div class="setting-section">
+        <h3>Thumbnails</h3>
+        <p class="section-desc">
+          Generate missing thumbnails for photos and videos (requires ffmpeg for videos).
+        </p>
+        <div class="action-row">
+          <button class="btn-action" (click)="generateThumbnails()" [disabled]="thumbsRunning">
+            {{ thumbsRunning ? 'Generating...' : 'Generate Missing Thumbnails' }}
+          </button>
+        </div>
+        @if (thumbsResult) {
+          <div class="result-msg">
+            Checked {{ thumbsResult.checked }}, generated {{ thumbsResult.generated }} thumbnails
+          </div>
+        }
+      </div>
+
       <!-- Face Detection -->
       <div class="setting-section">
         <h3>Face Detection</h3>
@@ -243,6 +261,8 @@ export class SettingsComponent implements OnInit {
   faceScanRunning = false;
   faceScanResult: { scanned: number; facesFound: number } | null = null;
   clusteringRunning = false;
+  thumbsRunning = false;
+  thumbsResult: { checked: number; generated: number } | null = null;
   ingestRunning = false;
   ingestResult: { imported: number; duplicates: number; errors: number } | null = null;
 
@@ -262,6 +282,19 @@ export class SettingsComponent implements OnInit {
   toggleSetting(key: string, event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     this.settingsService.set(key, checked ? 'true' : 'false');
+  }
+
+  generateThumbnails(): void {
+    this.thumbsRunning = true;
+    this.thumbsResult = null;
+    this.api.generateMissingThumbnails(200).subscribe({
+      next: (result) => {
+        this.thumbsResult = result;
+        this.thumbsRunning = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.thumbsRunning = false; },
+    });
   }
 
   cancelFaceScan(): void {
