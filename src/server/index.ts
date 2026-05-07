@@ -73,6 +73,14 @@ async function start(): Promise<void> {
   const photoRepo = new PhotoRepository(db);
   const albumRepo = new AlbumRepository(db);
 
+  // Ensure default TV album exists
+  const tvAlbumName = 'TV Slideshow';
+  const existingAlbums = albumRepo.list();
+  if (!existingAlbums.some((a) => a.name === tvAlbumName)) {
+    albumRepo.create({ name: tvAlbumName, description: 'Photos displayed on the TV slideshow' });
+    log.info('Created default "TV Slideshow" album');
+  }
+
   // Register API routes
   await app.register(photoRoutes, { photoRepo, config });
   await app.register(albumRoutes, { albumRepo });

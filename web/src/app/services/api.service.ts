@@ -225,6 +225,18 @@ export class ApiService {
     return this.http.post<{ checked: number; generated: number }>(`${this.baseUrl}/photos/generate-thumbnails`, { limit });
   }
 
+  getTvStatus(): Observable<{ dlna: { running: boolean }; slideshow: { available: boolean; url: string } }> {
+    return this.http.get<{ dlna: { running: boolean }; slideshow: { available: boolean; url: string } }>(`${this.baseUrl}/tv/status`);
+  }
+
+  startDlna(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/tv/dlna/start`, {});
+  }
+
+  stopDlna(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/tv/dlna/stop`, {});
+  }
+
   cancelFaceScan(): Observable<{ ok: boolean }> {
     return this.http.post<{ ok: boolean }>(`${this.baseUrl}/faces/cancel`, {});
   }

@@ -31,6 +31,37 @@ import type { CollectionStats } from '../../models/photo.model';
         }
       </div>
 
+      <!-- TV Services -->
+      <div class="setting-section">
+        <h3>TV Services</h3>
+        <p class="section-desc">
+          DLNA allows smart TVs to discover and browse your photos automatically.
+          The slideshow is accessible at <a href="/tv" target="_blank">/tv</a>.
+        </p>
+        <div class="action-row">
+          <button
+            class="btn-action"
+            [class.btn-active]="dlnaRunning"
+            (click)="toggleDlna()"
+          >
+            DLNA: {{ dlnaRunning ? 'Running' : 'Stopped' }}
+          </button>
+          <a href="/tv" target="_blank" class="btn-action" style="text-decoration:none">
+            Open TV Slideshow
+          </a>
+        </div>
+        @if (tvAlbumId) {
+          <div class="status-row" style="margin-top: 8px">
+            <span class="status-label">Default album:</span>
+            <span class="status-value">TV Slideshow (id: {{ tvAlbumId }})</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">TV URL with album:</span>
+            <span class="status-value"><code>/tv?album={{ tvAlbumId }}</code></span>
+          </div>
+        }
+      </div>
+
       <!-- Thumbnails -->
       <div class="setting-section">
         <h3>Thumbnails</h3>
@@ -198,6 +229,7 @@ import type { CollectionStats } from '../../models/photo.model';
       &:hover { background: #333; }
       &:disabled { opacity: 0.5; cursor: not-allowed; }
       &.btn-cancel { color: #e88; border-color: #844; &:hover { background: #3a1a1a; } }
+      &.btn-active { background: #1a3a1a; border-color: #2a5a2a; color: #8c8; }
     }
 
     .result-msg {
@@ -257,6 +289,8 @@ export class SettingsComponent implements OnInit {
   cleanupItems: Array<{ id: number; file_path: string; reason: string }> = [];
 
   settings: Record<string, string> = {};
+  dlnaRunning = false;
+  tvAlbumId: number | null = null;
 
   faceScanRunning = false;
   faceScanResult: { scanned: number; facesFound: number } | null = null;
@@ -277,11 +311,27 @@ export class SettingsComponent implements OnInit {
     this.api.getScanStatus().subscribe({ next: (s) => { this.scanStatus = s; this.cdr.detectChanges(); } });
     this.api.getCleanupLog().subscribe({ next: (items) => { this.cleanupItems = items; this.cdr.detectChanges(); } });
     this.settingsService.settings$.subscribe((s) => { this.settings = s; this.cdr.detectChanges(); });
+    this.api.getTvStatus().subscribe({ next: (s) => { this.dlnaRunning = s.dlna.running; this.cdr.detectChanges(); } });
+    this.api.getAlbums().subscribe({ next: (albums) => {
+      const tv = albums.find((a: { name: string }) => a.name === 'TV Slideshow');
+      if (tv) this.tvAlbumId = tv.id;
+      this.cdr.detectChanges();
+    }});
   }
 
   toggleSetting(key: string, event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     this.settingsService.set(key, checked ? 'true' : 'false');
+  }
+
+  toggleDlna(): void {
+    const action = this.dlnaRunning ? this.api.stopDlna() : this.api.startDlna();
+    action.subscribe({
+      next: () => {
+        this.dlnaRunning = !this.dlnaRunning;
+        this.cdr.detectChanges();
+      },
+    });
   }
 
   generateThumbnails(): void {

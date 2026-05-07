@@ -385,8 +385,11 @@ export class TimelineComponent implements OnInit, OnDestroy {
         for (const newGroup of response.groups) {
           const existing = this.groups.find((g) => g.date === newGroup.date);
           if (existing) {
-            existing.photos.push(...newGroup.photos);
-            existing.count += newGroup.count;
+            // Deduplicate: only add photos not already in the group
+            const existingIds = new Set(existing.photos.map((p) => p.id));
+            const newPhotos = newGroup.photos.filter((p) => !existingIds.has(p.id));
+            existing.photos.push(...newPhotos);
+            existing.count = existing.photos.length;
           } else {
             this.groups.push(newGroup);
           }

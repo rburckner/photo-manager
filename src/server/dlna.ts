@@ -25,11 +25,31 @@ function getLocalIp(): string {
   return '127.0.0.1';
 }
 
+export interface DlnaHandle {
+  stop: () => void;
+  running: boolean;
+}
+
+let dlnaHandle: DlnaHandle | null = null;
+
+export function getDlnaStatus(): { running: boolean } {
+  return { running: dlnaHandle?.running ?? false };
+}
+
+export function stopDlnaServer(): void {
+  if (dlnaHandle) {
+    dlnaHandle.stop();
+    dlnaHandle = null;
+  }
+}
+
 export function startDlnaServer(
   photoRepo: PhotoRepository,
   albumRepo: AlbumRepository,
   config: AppConfig,
 ): void {
+  if (dlnaHandle?.running) return;
+
   const log = getLogger();
   const localIp = getLocalIp();
   const baseUrl = `http://${localIp}:${DLNA_PORT}`;
@@ -64,6 +84,16 @@ export function startDlnaServer(
     ssdp.start();
     log.info('SSDP advertisement started — TV should discover "Photo Manager"');
   });
+
+  dlnaHandle = {
+    running: true,
+    stop: () => {
+      ssdp.stop();
+      server.close();
+      dlnaHandle = { running: false, stop: () => {} };
+      log.info('DLNA server stopped');
+    },
+  };
 }
 
 function serveDescription(res: ServerResponse, baseUrl: string): void {

@@ -351,6 +351,35 @@ export async function photoRoutes(
     };
   });
 
+  // ── TV Services ──
+
+  // GET /api/tv/status — DLNA and slideshow status
+  app.get('/api/tv/status', async () => {
+    const { getDlnaStatus } = await import('../dlna.js');
+    return {
+      dlna: getDlnaStatus(),
+      slideshow: { available: true, url: '/tv' },
+    };
+  });
+
+  // POST /api/tv/dlna/start — start DLNA server
+  app.post('/api/tv/dlna/start', async () => {
+    const { startDlnaServer, getDlnaStatus } = await import('../dlna.js');
+    const { AlbumRepository } = await import('../../db/repositories/album.repository.js');
+    const albumRepo = new AlbumRepository(photoRepo['db'] as import('better-sqlite3').Database);
+    if (!getDlnaStatus().running) {
+      startDlnaServer(photoRepo, albumRepo, config);
+    }
+    return { ok: true, running: true };
+  });
+
+  // POST /api/tv/dlna/stop — stop DLNA server
+  app.post('/api/tv/dlna/stop', async () => {
+    const { stopDlnaServer } = await import('../dlna.js');
+    stopDlnaServer();
+    return { ok: true, running: false };
+  });
+
   // GET /api/settings — app settings
   app.get('/api/settings', async () => {
     const db = photoRepo['db'] as import('better-sqlite3').Database;
