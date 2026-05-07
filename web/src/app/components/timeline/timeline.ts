@@ -67,11 +67,11 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
           <div class="loading">Loading photos...</div>
         }
 
-        @for (group of groups; track group.date) {
+        @for (group of groups; track group.date; let gi = $index) {
           <div class="date-group">
             <h2 class="date-header">{{ formatDate(group.date) }}</h2>
             <div class="photo-grid">
-              @for (photo of group.photos; track photo.id) {
+              @for (photo of group.photos; track photo.id; let pi = $index) {
                 <div
                   class="photo-card"
                   [class.video]="photo.is_video === 1"
@@ -85,7 +85,7 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
                   <img
                     [src]="getThumbnailUrl(photo.id)"
                     [alt]="photo.file_name"
-                    loading="lazy"
+                    [loading]="gi === 0 && pi < 12 ? 'eager' : 'lazy'"
                     (error)="onImageError($event)"
                   />
                   @if (photo.is_video === 1) {
