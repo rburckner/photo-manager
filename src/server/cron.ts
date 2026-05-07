@@ -234,6 +234,26 @@ export function startCronReindex(
         log.warn({ error: thumbErr instanceof Error ? thumbErr.message : String(thumbErr) }, 'Thumbnail backfill failed');
       }
 
+      // Backfill perceptual hashes for any photos missing them.
+      try {
+        const { computeDHash } = await import('../scanner/perceptual-hash.js');
+        const missingHashes = photoRepo.getPhotosWithoutPerceptualHash(500);
+        let hashed = 0;
+        for (const photo of missingHashes) {
+          const filePath = join(config.mediaRoot, photo.file_path);
+          const hash = await computeDHash(filePath);
+          if (hash) {
+            photoRepo.setPerceptualHash(photo.id, hash);
+            hashed++;
+          }
+        }
+        if (hashed > 0) {
+          log.info({ hashed, checked: missingHashes.length }, 'Perceptual hashes backfilled');
+        }
+      } catch (phashErr) {
+        log.warn({ error: phashErr instanceof Error ? phashErr.message : String(phashErr) }, 'Perceptual hash backfill failed');
+      }
+
       // Run face detection on new photos (small batch to avoid CPU overload)
       if (faceRepo) {
         try {

@@ -289,6 +289,93 @@ export async function photoRoutes(
     return { ok: true };
   });
 
+  // ── Perceptual-hash backfill ──
+  let phashScanRunning = false;
+  let phashScanCancelled: boolean = false;
+  const isPhashCancelled = (): boolean => phashScanCancelled;
+  let phashScanProgress = { checked: 0, hashed: 0, total: 0 };
+
+  app.post('/api/photos/perceptual-hash/scan', async () => {
+    if (phashScanRunning) return { ok: true, message: 'Already running' };
+
+    phashScanRunning = true;
+    phashScanCancelled = false;
+    phashScanProgress = { checked: 0, hashed: 0, total: 0 };
+
+    void (async () => {
+      const { computeDHash } = await import('../../scanner/perceptual-hash.js');
+      const allMissing = photoRepo.getPhotosWithoutPerceptualHash(999999);
+      phashScanProgress.total = allMissing.length;
+
+      for (const photo of allMissing) {
+        if (isPhashCancelled()) break;
+
+        const filePath = join(config.mediaRoot, photo.file_path);
+        if (existsSync(filePath)) {
+          const hash = await computeDHash(filePath);
+          if (hash) {
+            photoRepo.setPerceptualHash(photo.id, hash);
+            phashScanProgress.hashed++;
+          }
+        }
+        phashScanProgress.checked++;
+
+        if (phashScanProgress.checked % 50 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+      }
+
+      phashScanRunning = false;
+    })();
+
+    return { ok: true, message: 'Perceptual-hash scan started' };
+  });
+
+  app.get('/api/photos/perceptual-hash/status', async () => {
+    return { running: phashScanRunning, ...phashScanProgress };
+  });
+
+  app.post('/api/photos/perceptual-hash/cancel', async () => {
+    phashScanCancelled = true;
+    return { ok: true };
+  });
+
+  // GET /api/photos/duplicates/perceptual — clusters of visually-similar photos
+  app.get<{ Querystring: { distance?: string } }>(
+    '/api/photos/duplicates/perceptual',
+    async (request) => {
+      const distance = Math.min(7, Math.max(0, parseInt(request.query.distance ?? '5', 10)));
+      const { findNearDuplicateClusters } = await import('../../scanner/find-near-duplicates.js');
+      const hashes = photoRepo.getAllPerceptualHashes();
+      const clusters = findNearDuplicateClusters(hashes, distance);
+
+      // Hydrate cluster photos with the fields the UI needs.
+      return {
+        distance,
+        total_with_hash: hashes.length,
+        clusters: clusters.map((c) => ({
+          representative_id: c.representative_id,
+          photos: c.photo_ids
+            .map((id) => photoRepo.findById(id))
+            .filter((p): p is NonNullable<typeof p> => p !== undefined && !p.deleted_at)
+            .map((p) => ({
+              id: p.id,
+              file_name: p.file_name,
+              file_path: p.file_path,
+              file_size: p.file_size,
+              mime_type: p.mime_type,
+              date_taken: p.date_taken,
+              thumbnail_path: p.thumbnail_path,
+              is_video: p.is_video,
+              perceptual_hash: p.perceptual_hash,
+              width: p.width,
+              height: p.height,
+            })),
+        })).filter((c) => c.photos.length >= 2),
+      };
+    },
+  );
+
   // GET /api/photos/duplicates — files with same hash in different paths
   app.get('/api/photos/duplicates', async () => {
     return photoRepo.getDuplicates();

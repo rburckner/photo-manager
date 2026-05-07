@@ -10,6 +10,7 @@ import * as m007 from './migrations/007_hidden_photos.js';
 import * as m008 from './migrations/008_image_embeddings.js';
 import * as m009 from './migrations/009_notifications.js';
 import * as m010 from './migrations/010_trash.js';
+import * as m011 from './migrations/011_perceptual_hash.js';
 
 interface Migration {
   name: string;
@@ -27,6 +28,7 @@ const migrations: Migration[] = [
   m008,
   m009,
   m010,
+  m011,
 ];
 
 export function runMigrations(db: Database.Database): void {

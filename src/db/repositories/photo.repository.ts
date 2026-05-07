@@ -14,12 +14,14 @@ export class PhotoRepository {
         file_path, file_name, file_hash, file_size, mime_type,
         width, height, duration, date_taken, date_modified,
         camera_make, camera_model, lens, gps_lat, gps_lng,
-        orientation, is_video, is_favorite, thumbnail_path, folder_path
+        orientation, is_video, is_favorite, thumbnail_path, folder_path,
+        perceptual_hash
       ) VALUES (
         @file_path, @file_name, @file_hash, @file_size, @mime_type,
         @width, @height, @duration, @date_taken, @date_modified,
         @camera_make, @camera_model, @lens, @gps_lat, @gps_lng,
-        @orientation, @is_video, @is_favorite, @thumbnail_path, @folder_path
+        @orientation, @is_video, @is_favorite, @thumbnail_path, @folder_path,
+        @perceptual_hash
       )
     `);
 
@@ -136,6 +138,30 @@ export class PhotoRepository {
 
   setThumbnailPath(id: number, thumbnailPath: string): void {
     this.db.prepare('UPDATE photos SET thumbnail_path = ? WHERE id = ?').run(thumbnailPath, id);
+  }
+
+  getPhotosWithoutPerceptualHash(limit: number): Array<{ id: number; file_path: string }> {
+    return this.db.prepare(`
+      SELECT id, file_path FROM photos
+      WHERE perceptual_hash IS NULL
+        AND is_video = 0
+        AND deleted_at IS NULL
+      ORDER BY id DESC
+      LIMIT ?
+    `).all(limit) as Array<{ id: number; file_path: string }>;
+  }
+
+  setPerceptualHash(id: number, hash: string): void {
+    this.db.prepare('UPDATE photos SET perceptual_hash = ? WHERE id = ?').run(hash, id);
+  }
+
+  getAllPerceptualHashes(): Array<{ id: number; perceptual_hash: string }> {
+    return this.db.prepare(`
+      SELECT id, perceptual_hash FROM photos
+      WHERE perceptual_hash IS NOT NULL
+        AND deleted_at IS NULL
+        AND is_video = 0
+    `).all() as Array<{ id: number; perceptual_hash: string }>;
   }
 
   findSimilar(photoId: number): { sameDay: PhotoRow[]; samePerson: PhotoRow[] } {

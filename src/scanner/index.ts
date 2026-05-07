@@ -2,6 +2,7 @@ import { walkDirectory, countFiles } from './walker.js';
 import { extractExif } from './exif.js';
 import { getMediaInfo } from './media-info.js';
 import { generateThumbnail } from './thumbnails.js';
+import { computeDHash } from './perceptual-hash.js';
 import { PhotoRepository } from '../db/repositories/photo.repository.js';
 import { ScanProgressRepository } from '../db/repositories/scan-progress.repository.js';
 import type { FileEntry, PhotoInsert, ScanCallbacks, ScanConfig, ScanResult } from '../shared/types.js';
@@ -145,6 +146,9 @@ export async function processFile(entry: FileEntry, config: ScanConfig): Promise
   // Use EXIF date if available, fall back to file mtime
   const dateTaken = exif.dateTaken?.toISOString() ?? null;
 
+  // Perceptual hash (images only — videos can't easily produce a meaningful single dHash).
+  const perceptualHash = mediaInfo.isVideo ? null : await computeDHash(entry.absolutePath);
+
   return {
     file_path: entry.relativePath,
     file_name: entry.fileName,
@@ -166,6 +170,7 @@ export async function processFile(entry: FileEntry, config: ScanConfig): Promise
     is_favorite: 0,
     thumbnail_path: thumbnailPath,
     folder_path: entry.folderPath,
+    perceptual_hash: perceptualHash,
   };
 }
 

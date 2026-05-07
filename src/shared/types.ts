@@ -27,6 +27,7 @@ export interface PhotoRow {
   deleted_at: string | null;
   trash_path: string | null;
   original_path: string | null;
+  perceptual_hash: string | null;
 }
 
 export interface PhotoInsert {
@@ -50,6 +51,7 @@ export interface PhotoInsert {
   is_favorite: number;
   thumbnail_path: string | null;
   folder_path: string;
+  perceptual_hash: string | null;
 }
 
 export interface AlbumRow {

@@ -214,6 +214,62 @@ export class ApiService {
     return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/photos/${id}`);
   }
 
+  // Perceptual (near-duplicate) detection
+  getPerceptualDuplicates(distance: number): Observable<{
+    distance: number;
+    total_with_hash: number;
+    clusters: Array<{
+      representative_id: number;
+      photos: Array<{
+        id: number;
+        file_name: string;
+        file_path: string;
+        file_size: number;
+        mime_type: string;
+        date_taken: string | null;
+        thumbnail_path: string | null;
+        is_video: number;
+        perceptual_hash: string | null;
+        width: number | null;
+        height: number | null;
+      }>;
+    }>;
+  }> {
+    const params = new HttpParams().set('distance', String(distance));
+    return this.http.get<{
+      distance: number;
+      total_with_hash: number;
+      clusters: Array<{
+        representative_id: number;
+        photos: Array<{
+          id: number;
+          file_name: string;
+          file_path: string;
+          file_size: number;
+          mime_type: string;
+          date_taken: string | null;
+          thumbnail_path: string | null;
+          is_video: number;
+          perceptual_hash: string | null;
+          width: number | null;
+          height: number | null;
+        }>;
+      }>;
+    }>(`${this.baseUrl}/photos/duplicates/perceptual`, { params });
+  }
+
+  startPerceptualHashScan(): Observable<{ ok: boolean; message?: string }> {
+    return this.http.post<{ ok: boolean; message?: string }>(`${this.baseUrl}/photos/perceptual-hash/scan`, {});
+  }
+
+  getPerceptualHashStatus(): Observable<{ running: boolean; checked: number; hashed: number; total: number }> {
+    return this.http.get<{ running: boolean; checked: number; hashed: number; total: number }>(`${this.baseUrl}/photos/perceptual-hash/status`);
+  }
+
+  cancelPerceptualHashScan(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/perceptual-hash/cancel`, {});
+  }
+
   triggerIngest(): Observable<{ imported: number; duplicates: number; errors: number }> {
     return this.http.post<{ imported: number; duplicates: number; errors: number }>(`${this.baseUrl}/ingest`, {});
   }

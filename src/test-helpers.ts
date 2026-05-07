@@ -45,6 +45,7 @@ export function makePhotoInsert(overrides: Partial<PhotoInsert> = {}): PhotoInse
     is_favorite: 0,
     thumbnail_path: null,
     folder_path: 'test',
+    perceptual_hash: null,
     ...overrides,
   };
 }
