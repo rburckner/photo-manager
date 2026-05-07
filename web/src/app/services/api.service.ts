@@ -81,6 +81,10 @@ export class ApiService {
     return this.http.get<Photo[]>(`${this.baseUrl}/photos/bad-dates`, { params: { limit: limit.toString() } });
   }
 
+  findSimilar(id: number): Observable<{ sameDay: Photo[]; samePerson: Photo[] }> {
+    return this.http.get<{ sameDay: Photo[]; samePerson: Photo[] }>(`${this.baseUrl}/photos/${id}/similar`);
+  }
+
   bulkHide(ids: number[], hidden: boolean): Observable<{ ok: boolean }> {
     return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/bulk/hide`, { photo_ids: ids, hidden });
   }

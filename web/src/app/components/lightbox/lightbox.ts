@@ -134,6 +134,9 @@ import type { Photo, Album } from '../../models/photo.model';
         <button class="btn-album" [class.active]="showAlbumPicker" (click)="toggleAlbumPicker()">
           &#43;
         </button>
+        <button class="btn-similar" (click)="findSimilar()">
+          &#128269;
+        </button>
         <a class="btn-download" [href]="api.getFileUrl(photo.id)" download>
           &#8615;
         </a>
@@ -159,6 +162,40 @@ import type { Photo, Album } from '../../models/photo.model';
                 }
               </button>
             }
+          </div>
+        }
+
+        <!-- Similar photos panel -->
+        @if (showSimilar && similarPhotos.length > 0) {
+          <div class="similar-panel">
+            <div class="similar-header">
+              <span>{{ similarPhotos.length }} similar photos (same day{{ hasSamePerson ? ' + same person' : '' }})</span>
+              <button class="similar-select-all" (click)="selectAllSimilar()">Select All + Hide</button>
+              <button class="similar-close" (click)="showSimilar = false">&times;</button>
+            </div>
+            <div class="similar-grid">
+              @for (p of similarPhotos; track p.id) {
+                <div class="similar-thumb" [class.selected]="similarSelected.has(p.id)" (click)="toggleSimilarSelect(p.id)">
+                  <img [src]="api.getThumbnailUrl(p.id)" />
+                  @if (similarSelected.has(p.id)) {
+                    <div class="sim-check">&#10003;</div>
+                  }
+                </div>
+              }
+            </div>
+            @if (similarSelected.size > 0) {
+              <div class="similar-actions">
+                <button class="sim-hide-btn" (click)="hideSelectedSimilar()">Hide {{ similarSelected.size }} photos</button>
+              </div>
+            }
+          </div>
+        }
+        @if (showSimilar && similarPhotos.length === 0 && !similarLoading) {
+          <div class="similar-panel">
+            <div class="similar-header">
+              <span>No similar photos found</span>
+              <button class="similar-close" (click)="showSimilar = false">&times;</button>
+            </div>
           </div>
         }
 
@@ -351,7 +388,17 @@ import type { Photo, Album } from '../../models/photo.model';
     }
 
     /* ── Album picker ── */
+    .btn-similar {
+      top: 8px;
+      right: 228px;
+      width: 36px;
+      height: 36px;
+      font-size: 1.1rem;
+      z-index: 10;
+    }
+
     .btn-download {
+      right: 272px;
       top: 8px;
       right: 184px;
       width: 36px;
@@ -417,6 +464,104 @@ import type { Photo, Album } from '../../models/photo.model';
       font-size: 0.9rem;
     }
 
+    /* ── Similar panel ── */
+    .similar-panel {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #1a1a1a;
+      border-top: 1px solid #444;
+      max-height: 240px;
+      z-index: 15;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .similar-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      font-size: 0.8rem;
+      color: #aaa;
+      border-bottom: 1px solid #333;
+    }
+
+    .similar-select-all {
+      background: #2a3a1a;
+      border: 1px solid #4a5a2a;
+      color: #ac8;
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      margin-left: auto;
+      &:hover { background: #3a4a2a; }
+    }
+
+    .similar-close {
+      background: none;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      font-size: 1.2rem;
+      &:hover { color: #fff; }
+    }
+
+    .similar-grid {
+      display: flex;
+      gap: 4px;
+      padding: 8px;
+      overflow-x: auto;
+      flex: 1;
+    }
+
+    .similar-thumb {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      flex-shrink: 0;
+      border-radius: 4px;
+      overflow: hidden;
+      cursor: pointer;
+      border: 2px solid transparent;
+
+      img { width: 100%; height: 100%; object-fit: cover; }
+      &.selected { border-color: #3a7bd5; }
+    }
+
+    .sim-check {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #3a7bd5;
+      color: #fff;
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .similar-actions {
+      padding: 6px 16px;
+      border-top: 1px solid #333;
+    }
+
+    .sim-hide-btn {
+      background: #3a1a1a;
+      border: 1px solid #5a2a2a;
+      color: #e88;
+      padding: 6px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      &:hover { background: #4a2a2a; }
+    }
+
     .btn-prev, .btn-next {
       top: 50%;
       transform: translateY(-50%);
@@ -442,6 +587,11 @@ export class LightboxComponent implements OnInit, OnDestroy {
   albums: Album[] = [];
   addedAlbumIds = new Set<number>();
   photoTags: Array<{ id: number; name: string }> = [];
+  showSimilar = false;
+  similarLoading = false;
+  similarPhotos: Array<{ id: number }> = [];
+  similarSelected = new Set<number>();
+  hasSamePerson = false;
 
   private keyHandler: ((e: KeyboardEvent) => void) | null = null;
 
@@ -542,6 +692,58 @@ export class LightboxComponent implements OnInit, OnDestroy {
   removeTag(tagId: number): void {
     this.api.removeTagFromPhotos(tagId, [this.photo.id]).subscribe({
       next: () => { this.loadTags(); },
+    });
+  }
+
+  findSimilar(): void {
+    this.showSimilar = true;
+    this.similarLoading = true;
+    this.similarSelected.clear();
+    this.api.findSimilar(this.photo.id).subscribe({
+      next: (result) => {
+        // Combine sameDay + samePerson, deduplicate
+        const ids = new Set<number>();
+        const all: Array<{ id: number }> = [];
+        for (const p of result.samePerson) {
+          if (!ids.has(p.id)) { ids.add(p.id); all.push(p); }
+        }
+        for (const p of result.sameDay) {
+          if (!ids.has(p.id)) { ids.add(p.id); all.push(p); }
+        }
+        this.similarPhotos = all;
+        this.hasSamePerson = result.samePerson.length > 0;
+        this.similarLoading = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  toggleSimilarSelect(id: number): void {
+    if (this.similarSelected.has(id)) {
+      this.similarSelected.delete(id);
+    } else {
+      this.similarSelected.add(id);
+    }
+  }
+
+  selectAllSimilar(): void {
+    for (const p of this.similarPhotos) {
+      this.similarSelected.add(p.id);
+    }
+    this.cdr.detectChanges();
+  }
+
+  hideSelectedSimilar(): void {
+    const ids = [...this.similarSelected];
+    if (ids.length === 0) return;
+    if (!confirm(`Hide ${ids.length} photos? They'll be removed from timeline/search but kept on disk.`)) return;
+
+    this.api.bulkHide(ids, true).subscribe({
+      next: () => {
+        this.similarPhotos = this.similarPhotos.filter((p) => !this.similarSelected.has(p.id));
+        this.similarSelected.clear();
+        this.cdr.detectChanges();
+      },
     });
   }
 

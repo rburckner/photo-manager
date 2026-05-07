@@ -258,6 +258,14 @@ export async function photoRoutes(
     return photoRepo.getDuplicates();
   });
 
+  // GET /api/photos/:id/similar — find photos from same day and same person
+  app.get<{ Params: { id: string } }>('/api/photos/:id/similar', async (request, reply) => {
+    const id = parseInt(request.params.id, 10);
+    const photo = photoRepo.findById(id);
+    if (!photo) return reply.code(404).send({ error: 'Photo not found' });
+    return photoRepo.findSimilar(id);
+  });
+
   // POST /api/photos/bulk/hide — hide photos from all views
   app.post<{ Body: { photo_ids: number[]; hidden: boolean } }>('/api/photos/bulk/hide', async (request, reply) => {
     const { photo_ids, hidden } = request.body;

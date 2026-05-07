@@ -125,6 +125,45 @@ export class PhotoRepository {
     this.db.prepare('UPDATE photos SET thumbnail_path = ? WHERE id = ?').run(thumbnailPath, id);
   }
 
+  findSimilar(photoId: number): { sameDay: PhotoRow[]; samePerson: PhotoRow[] } {
+    const photo = this.findById(photoId);
+    if (!photo) return { sameDay: [], samePerson: [] };
+
+    // Same day: all photos with same date (to the day)
+    const date = photo.date_taken ?? photo.date_modified;
+    const dayStart = date.slice(0, 10) + 'T00:00:00';
+    const dayEnd = date.slice(0, 10) + 'T23:59:59';
+    const sameDay = this.db.prepare(`
+      SELECT * FROM photos
+      WHERE id != ? AND is_hidden = 0
+        AND COALESCE(date_taken, date_modified) BETWEEN ? AND ?
+      ORDER BY COALESCE(date_taken, date_modified)
+      LIMIT 500
+    `).all(photoId, dayStart, dayEnd) as PhotoRow[];
+
+    // Same person: if this photo has a face with a person_id, find other photos of that person
+    const face = this.db.prepare(`
+      SELECT person_id FROM faces WHERE photo_id = ? AND person_id IS NOT NULL LIMIT 1
+    `).get(photoId) as { person_id: number } | undefined;
+
+    let samePerson: PhotoRow[] = [];
+    if (face) {
+      const personPhotoIds = this.db.prepare(`
+        SELECT DISTINCT f.photo_id FROM faces f
+        JOIN photos p ON p.id = f.photo_id
+        WHERE f.person_id = ? AND f.photo_id != ? AND p.is_hidden = 0
+        ORDER BY p.date_taken DESC
+        LIMIT 200
+      `).all(face.person_id, photoId) as Array<{ photo_id: number }>;
+
+      samePerson = personPhotoIds
+        .map((r) => this.findById(r.photo_id))
+        .filter((p): p is PhotoRow => p !== undefined);
+    }
+
+    return { sameDay, samePerson };
+  }
+
   bulkSetHidden(ids: number[], hidden: boolean): void {
     const stmt = this.db.prepare('UPDATE photos SET is_hidden = ? WHERE id = ?');
     const run = this.db.transaction((photoIds: number[]) => {
