@@ -134,6 +134,9 @@ import type { Photo, Album } from '../../models/photo.model';
         <button class="btn-album" [class.active]="showAlbumPicker" (click)="toggleAlbumPicker()">
           &#43;
         </button>
+        <button class="btn-rotate" (click)="rotatePhoto()">
+          &#8635;
+        </button>
         <button class="btn-similar" (click)="findSimilar()">
           &#128269;
         </button>
@@ -388,9 +391,18 @@ import type { Photo, Album } from '../../models/photo.model';
     }
 
     /* ── Album picker ── */
-    .btn-similar {
+    .btn-rotate {
       top: 8px;
       right: 228px;
+      width: 36px;
+      height: 36px;
+      font-size: 1.3rem;
+      z-index: 10;
+    }
+
+    .btn-similar {
+      top: 8px;
+      right: 272px;
       width: 36px;
       height: 36px;
       font-size: 1.1rem;
@@ -398,7 +410,7 @@ import type { Photo, Album } from '../../models/photo.model';
     }
 
     .btn-download {
-      right: 272px;
+      right: 316px;
       top: 8px;
       right: 184px;
       width: 36px;
@@ -692,6 +704,20 @@ export class LightboxComponent implements OnInit, OnDestroy {
   removeTag(tagId: number): void {
     this.api.removeTagFromPhotos(tagId, [this.photo.id]).subscribe({
       next: () => { this.loadTags(); },
+    });
+  }
+
+  rotatePhoto(): void {
+    this.api.rotatePhoto(this.photo.id, 90).subscribe({
+      next: () => {
+        // Force reload the thumbnail and full image by cache-busting
+        const timestamp = Date.now();
+        const img = document.querySelector('.lightbox-content .media') as HTMLImageElement | null;
+        if (img && img.src) {
+          img.src = this.api.getFileUrl(this.photo.id) + '?t=' + timestamp;
+        }
+        this.cdr.detectChanges();
+      },
     });
   }
 

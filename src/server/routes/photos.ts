@@ -668,6 +668,35 @@ export async function photoRoutes(
     };
   });
 
+  // POST /api/photos/:id/rotate — rotate photo thumbnail
+  app.post<{ Params: { id: string }; Body: { degrees: number } }>('/api/photos/:id/rotate', async (request, reply) => {
+    const id = parseInt(request.params.id, 10);
+    const degrees = request.body?.degrees ?? 90;
+    const photo = photoRepo.findById(id);
+    if (!photo) return reply.code(404).send({ error: 'Photo not found' });
+
+    if (!photo.thumbnail_path) {
+      return reply.code(400).send({ error: 'No thumbnail to rotate' });
+    }
+
+    const thumbPath = join(config.thumbnailDir, photo.thumbnail_path);
+    if (!existsSync(thumbPath)) {
+      return reply.code(404).send({ error: 'Thumbnail file missing' });
+    }
+
+    const sharp = (await import('sharp')).default;
+    const rotated = await sharp(thumbPath).rotate(degrees).toBuffer();
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(thumbPath, rotated);
+
+    // Update orientation in DB
+    const newOrientation = ((photo.orientation ?? 1) + (degrees / 90)) % 4 || 1;
+    db.prepare('UPDATE photos SET orientation = ? WHERE id = ?').run(newOrientation, id);
+
+    logActivity(db, 'photo_rotated', `Photo ${id} rotated ${degrees}°`);
+    return { ok: true, degrees };
+  });
+
   // GET /api/backup — download SQLite database backup
   app.get('/api/backup', async (_request, reply) => {
     const dbPath = config.dbPath;

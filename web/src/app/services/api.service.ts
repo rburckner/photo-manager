@@ -109,6 +109,10 @@ export class ApiService {
     return this.http.post<{ ok: boolean }>(`${this.baseUrl}/embeddings/cancel`, {});
   }
 
+  rotatePhoto(id: number, degrees: number = 90): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/${id}/rotate`, { degrees });
+  }
+
   findSimilar(id: number): Observable<{ sameDay: Photo[]; samePerson: Photo[] }> {
     return this.http.get<{ sameDay: Photo[]; samePerson: Photo[] }>(`${this.baseUrl}/photos/${id}/similar`);
   }

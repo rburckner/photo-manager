@@ -42,6 +42,17 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
           @if (dateError) {
             <span class="date-error">{{ dateError }}</span>
           }
+          <div class="sort-controls">
+            <select class="sort-select" [value]="sortBy" (change)="onSortChange($event)">
+              <option value="date">Date</option>
+              <option value="name">Name</option>
+              <option value="size">Size</option>
+              <option value="camera">Camera</option>
+            </select>
+            <button class="sort-order" (click)="toggleSortOrder()">
+              {{ sortOrder === 'desc' ? '&#9660;' : '&#9650;' }}
+            </button>
+          </div>
         </div>
 
         <!-- Year quick-select pills -->
@@ -143,6 +154,37 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
       flex-direction: column;
       gap: 10px;
       flex-shrink: 0;
+    }
+
+    .sort-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: auto;
+    }
+
+    .sort-select {
+      background: #222;
+      border: 1px solid #444;
+      color: #e0e0e0;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
+
+      &:focus { outline: none; border-color: #666; }
+    }
+
+    .sort-order {
+      background: #222;
+      border: 1px solid #444;
+      color: #aaa;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+
+      &:hover { background: #333; }
     }
 
     .date-error {
@@ -304,6 +346,8 @@ export class TimelineComponent implements OnInit, OnDestroy {
   groups: TimelineGroup[] = [];
   loading = false;
   hasMore = true;
+  sortBy = 'date';
+  sortOrder: 'asc' | 'desc' = 'desc';
   selectedPhoto: PhotoSummary | null = null;
   selectedPhotoFull!: Photo;
 
@@ -380,6 +424,16 @@ export class TimelineComponent implements OnInit, OnDestroy {
     }
     this.dateError = '';
     return true;
+  }
+
+  onSortChange(event: Event): void {
+    this.sortBy = (event.target as HTMLSelectElement).value;
+    this.resetAndReload();
+  }
+
+  toggleSortOrder(): void {
+    this.sortOrder = this.sortOrder === 'desc' ? 'asc' : 'desc';
+    this.resetAndReload();
   }
 
   filterByYear(year: number): void {
