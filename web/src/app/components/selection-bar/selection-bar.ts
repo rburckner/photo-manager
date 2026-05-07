@@ -20,6 +20,18 @@ import type { Album } from '../../models/photo.model';
           <button class="bar-btn" (click)="bulkFavorite(true)">&#9733; Favorite</button>
           <button class="bar-btn" (click)="bulkFavorite(false)">&#9734; Unfavorite</button>
           <button class="bar-btn" (click)="exportSelected()">&#8615; Export Zip</button>
+          <div class="date-picker-wrap">
+            <button class="bar-btn" (click)="showDatePicker = !showDatePicker">&#128197; Set Date</button>
+            @if (showDatePicker) {
+              <div class="dropdown-menu">
+                <input
+                  type="month"
+                  class="date-pick-input"
+                  (change)="bulkSetDate($event)"
+                />
+              </div>
+            }
+          </div>
           <div class="album-dropdown">
             <button class="bar-btn" (click)="toggleAlbumDropdown()">+ Add to Album</button>
             @if (showAlbumDropdown) {
@@ -98,8 +110,17 @@ import type { Album } from '../../models/photo.model';
       &:hover { background: rgba(255,100,100,0.15); }
     }
 
-    .album-dropdown {
+    .date-picker-wrap, .album-dropdown {
       position: relative;
+    }
+
+    .date-pick-input {
+      padding: 8px;
+      background: #1a1a1a;
+      border: 1px solid #444;
+      color: #ddd;
+      border-radius: 4px;
+      &::-webkit-calendar-picker-indicator { filter: invert(0.7); }
     }
 
     .dropdown-menu {
@@ -148,6 +169,7 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
   selectionMode = false;
   count = 0;
   showAlbumDropdown = false;
+  showDatePicker = false;
   albums: Album[] = [];
   activeAlbumId: number | null = null;
   actionMessage = '';
@@ -184,6 +206,22 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
     this.selection.exitSelectionMode();
     this.showAlbumDropdown = false;
     this.actionMessage = '';
+  }
+
+  bulkSetDate(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const month = input.value; // "2024-01"
+    if (!month) return;
+    const date = `${month}-15T12:00:00.000Z`; // Mid-month as a reasonable default
+    const ids = this.selection.ids;
+    this.api.bulkSetDate(ids, date).subscribe({
+      next: () => {
+        this.showDatePicker = false;
+        this.actionMessage = `Set date to ${month} for ${ids.length} photos`;
+        this.cdr.detectChanges();
+        setTimeout(() => { this.actionMessage = ''; this.cdr.detectChanges(); }, 2000);
+      },
+    });
   }
 
   exportSelected(): void {

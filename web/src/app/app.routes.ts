@@ -52,6 +52,10 @@ export const routes: Routes = [
         loadComponent: () => import('./components/settings/settings').then((m) => m.SettingsComponent),
       },
       {
+        path: 'fix-dates',
+        loadComponent: () => import('./components/fix-dates/fix-dates').then((m) => m.FixDatesComponent),
+      },
+      {
         path: 'duplicates',
         loadComponent: () => import('./components/duplicates/duplicates').then((m) => m.DuplicatesComponent),
       },

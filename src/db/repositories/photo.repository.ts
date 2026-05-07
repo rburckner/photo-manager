@@ -112,6 +112,27 @@ export class PhotoRepository {
     this.db.prepare('UPDATE photos SET thumbnail_path = ? WHERE id = ?').run(thumbnailPath, id);
   }
 
+  bulkSetDate(ids: number[], date: string): void {
+    const stmt = this.db.prepare('UPDATE photos SET date_taken = ? WHERE id = ?');
+    const run = this.db.transaction((photoIds: number[]) => {
+      for (const id of photoIds) {
+        stmt.run(date, id);
+      }
+    });
+    run(ids);
+  }
+
+  getPhotosWithBadDates(limit: number): PhotoRow[] {
+    return this.db.prepare(`
+      SELECT * FROM photos
+      WHERE date_taken IS NULL
+         OR date_taken < '1990-01-01'
+         OR date_taken > datetime('now', '+1 day')
+      ORDER BY date_modified DESC
+      LIMIT ?
+    `).all(limit) as PhotoRow[];
+  }
+
   bulkSetFavorite(ids: number[], value: boolean): void {
     const stmt = this.db.prepare('UPDATE photos SET is_favorite = ? WHERE id = ?');
     const run = this.db.transaction((photoIds: number[]) => {

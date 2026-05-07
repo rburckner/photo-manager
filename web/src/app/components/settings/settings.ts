@@ -31,6 +31,19 @@ import type { CollectionStats } from '../../models/photo.model';
         }
       </div>
 
+      <!-- Date Management -->
+      <div class="setting-section">
+        <h3>Date Management</h3>
+        <p class="section-desc">
+          Fix photos with missing or incorrect dates by dragging them to the correct month.
+        </p>
+        <div class="action-row">
+          <a href="/fix-dates" class="btn-action" style="text-decoration:none">
+            Open Fix Dates Tool
+          </a>
+        </div>
+      </div>
+
       <!-- TV Services -->
       <div class="setting-section">
         <h3>TV Services</h3>

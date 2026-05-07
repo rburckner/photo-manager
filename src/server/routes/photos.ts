@@ -253,6 +253,22 @@ export async function photoRoutes(
     return photoRepo.getDuplicates();
   });
 
+  // POST /api/photos/bulk/set-date — bulk update date_taken
+  app.post<{ Body: { photo_ids: number[]; date: string } }>('/api/photos/bulk/set-date', async (request, reply) => {
+    const { photo_ids, date } = request.body;
+    if (!Array.isArray(photo_ids) || photo_ids.length === 0 || !date) {
+      return reply.code(400).send({ error: 'photo_ids and date required' });
+    }
+    photoRepo.bulkSetDate(photo_ids, date);
+    return { ok: true, count: photo_ids.length };
+  });
+
+  // GET /api/photos/bad-dates — photos with missing or suspicious dates
+  app.get<{ Querystring: { limit?: string } }>('/api/photos/bad-dates', async (request) => {
+    const limit = Math.min(500, parseInt(request.query.limit ?? '200', 10));
+    return photoRepo.getPhotosWithBadDates(limit);
+  });
+
   // POST /api/photos/bulk/favorite — bulk set favorite
   app.post<{ Body: { photo_ids: number[]; value: boolean } }>('/api/photos/bulk/favorite', async (request, reply) => {
     const { photo_ids, value } = request.body;

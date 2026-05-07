@@ -71,6 +71,14 @@ export class ApiService {
   }
 
   // Favorites
+  getBadDatePhotos(limit: number = 200): Observable<Photo[]> {
+    return this.http.get<Photo[]>(`${this.baseUrl}/photos/bad-dates`, { params: { limit: limit.toString() } });
+  }
+
+  bulkSetDate(ids: number[], date: string): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/bulk/set-date`, { photo_ids: ids, date });
+  }
+
   bulkFavorite(ids: number[], value: boolean): Observable<{ ok: boolean }> {
     return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/bulk/favorite`, { photo_ids: ids, value });
   }
