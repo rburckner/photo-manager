@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
+import fastifyMultipart from '@fastify/multipart';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { loadConfig } from '../shared/config.js';
@@ -25,6 +26,9 @@ const config = loadConfig();
 const log = initLogger({ logLevel: config.logLevel });
 
 const app = Fastify({ logger: false });
+
+// File upload support (for DB restore)
+await app.register(fastifyMultipart, { limits: { fileSize: 500 * 1024 * 1024 } }); // 500MB max
 
 // Local network guard — reject non-private IPs unless PM_ALLOW_REMOTE=true
 const allowRemote = process.env['PM_ALLOW_REMOTE'] === 'true';

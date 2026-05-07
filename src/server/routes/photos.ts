@@ -619,6 +619,43 @@ export async function photoRoutes(
     return { ok: true };
   });
 
+  // POST /api/backup/restore — restore database from uploaded file
+  app.post('/api/backup/restore', async (request, reply) => {
+    const data = await request.file();
+    if (!data) {
+      return reply.code(400).send({ error: 'No file uploaded' });
+    }
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) {
+      chunks.push(chunk as Buffer);
+    }
+    const fileBuffer = Buffer.concat(chunks);
+
+    // Validate it's a SQLite file (magic bytes)
+    const magic = fileBuffer.subarray(0, 16).toString('ascii');
+    if (!magic.startsWith('SQLite format 3')) {
+      return reply.code(400).send({ error: 'Invalid file — not a SQLite database' });
+    }
+
+    // Write to a temp file, then swap
+    const { writeFileSync, copyFileSync: cpSync } = await import('node:fs');
+    const backupPath = `${config.dbPath}.pre-restore`;
+
+    // Backup current DB before overwriting
+    cpSync(config.dbPath, backupPath);
+    writeFileSync(config.dbPath, fileBuffer);
+
+    logActivity(db, 'db_restored', `Restored from uploaded backup (${(fileBuffer.length / 1024 / 1024).toFixed(1)} MB). Pre-restore backup at ${backupPath}`);
+
+    return {
+      ok: true,
+      message: 'Database restored. Restart the server for changes to take effect.',
+      preRestoreBackup: backupPath,
+      size: fileBuffer.length,
+    };
+  });
+
   // GET /api/backup — download SQLite database backup
   app.get('/api/backup', async (_request, reply) => {
     const dbPath = config.dbPath;

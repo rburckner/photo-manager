@@ -244,15 +244,22 @@ import type { CollectionStats } from '../../models/photo.model';
         </div>
       </div>
 
-      <!-- Database Backup -->
+      <!-- Database Backup & Restore -->
       <div class="setting-section">
-        <h3>Database Backup</h3>
+        <h3>Database Backup &amp; Restore</h3>
         <p class="section-desc">
-          Download the SQLite database. Includes all metadata, albums, tags, faces, and settings.
+          Download or restore the SQLite database. Includes all metadata, albums, tags, faces, and settings.
         </p>
         <div class="action-row">
           <button class="btn-action" (click)="downloadBackup()">Download Backup</button>
+          <label class="btn-action" style="cursor:pointer">
+            Restore from Backup
+            <input type="file" accept=".db,.sqlite,.sqlite3" style="display:none" (change)="restoreBackup($event)" />
+          </label>
         </div>
+        @if (restoreMessage) {
+          <div class="result-msg">{{ restoreMessage }}</div>
+        }
       </div>
 
       </div>
@@ -672,6 +679,34 @@ export class SettingsComponent implements OnInit {
         this.refreshEmbeddingStatus();
       },
     });
+  }
+
+  restoreMessage = '';
+
+  restoreBackup(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    if (!confirm('Restore database from backup? This will overwrite the current database. A pre-restore backup will be saved. The server must be restarted after restore.')) {
+      input.value = '';
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    fetch('/api/backup/restore', { method: 'POST', body: formData })
+      .then((r) => r.json())
+      .then((result: { ok?: boolean; message?: string; error?: string }) => {
+        this.restoreMessage = result.ok ? (result.message ?? 'Restored') : (result.error ?? 'Failed');
+        input.value = '';
+        this.cdr.detectChanges();
+      })
+      .catch(() => {
+        this.restoreMessage = 'Upload failed';
+        this.cdr.detectChanges();
+      });
   }
 
   downloadBackup(): void {
