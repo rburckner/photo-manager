@@ -172,11 +172,11 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
       align-items: center;
       cursor: pointer;
       flex-shrink: 0;
-      width: 100px;
+      width: 128px;
 
       img {
-        width: 84px;
-        height: 84px;
+        width: 112px;
+        height: 112px;
         border-radius: 50%;
         object-fit: cover;
         border: 2px solid transparent;
@@ -184,8 +184,8 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
       }
 
       .no-face {
-        width: 84px;
-        height: 84px;
+        width: 112px;
+        height: 112px;
         border-radius: 50%;
         background: #333;
         display: flex;
