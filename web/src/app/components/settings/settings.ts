@@ -12,24 +12,140 @@ import type { CollectionStats } from '../../models/photo.model';
     <div class="settings-container">
       <h2>Settings</h2>
 
-      <!-- Scan -->
-      <div class="setting-section">
-        <h3>Photo Scanning</h3>
-        <p class="section-desc">
-          Re-index scans the NAS for new or changed photos. Runs daily at 2 AM automatically.
-        </p>
-        @if (scanStatus) {
-          <div class="status-row">
-            <span class="status-label">Last scan:</span>
-            <span class="status-value">
-              {{ scanStatus.status }}
-              @if (scanStatus.processed_files) {
-                — {{ scanStatus.processed_files?.toLocaleString() }} / {{ scanStatus.total_files?.toLocaleString() }} files
-              }
-            </span>
+      <!-- ═══════ PROCESSING JOBS ═══════ -->
+      <div class="section-group">
+        <h3 class="group-title">Processing Jobs</h3>
+        <p class="group-desc">Background tasks that process your photo collection. Start, monitor, and cancel from here.</p>
+
+        <!-- Photo Scanning -->
+        <div class="job-card">
+          <div class="job-header">
+            <span class="job-icon">&#128247;</span>
+            <span class="job-name">Photo Scanning</span>
           </div>
-        }
+          @if (scanStatus) {
+            <div class="job-progress">
+              {{ scanStatus.status }} — {{ scanStatus.processed_files?.toLocaleString() ?? 0 }} / {{ scanStatus.total_files?.toLocaleString() ?? 0 }} files
+            </div>
+          }
+          <div class="job-desc">Re-index scans the NAS for new or changed photos. Runs daily at 2 AM.</div>
+        </div>
+
+        <!-- GPS Coordinates -->
+        <div class="job-card">
+          <div class="job-header">
+            <span class="job-icon">&#127758;</span>
+            <span class="job-name">GPS Coordinates</span>
+            @if (gpsStatus?.running) { <span class="job-badge running">Running</span> }
+          </div>
+          @if (gpsStatus) {
+            <div class="job-progress">
+              {{ gpsStatus.found.toLocaleString() }} GPS found — {{ gpsStatus.checked.toLocaleString() }} / {{ gpsStatus.total.toLocaleString() }} checked
+            </div>
+            <div class="job-actions">
+              <button class="btn-job" (click)="rescanGps()" [disabled]="gpsRunning">
+                {{ gpsRunning ? 'Scanning...' : 'Re-scan GPS' }}
+              </button>
+              @if (gpsRunning) {
+                <button class="btn-job btn-cancel" (click)="cancelGpsScan()">Cancel</button>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Visual Similarity -->
+        <div class="job-card">
+          <div class="job-header">
+            <span class="job-icon">&#128269;</span>
+            <span class="job-name">Visual Similarity</span>
+            @if (embeddingStatus?.running) { <span class="job-badge running">Running</span> }
+          </div>
+          @if (embeddingStatus) {
+            <div class="job-progress">
+              {{ embeddingStatus.embedded.toLocaleString() }} / {{ embeddingStatus.total.toLocaleString() }} embedded ({{ embeddingStatus.remaining.toLocaleString() }} remaining)
+            </div>
+            <div class="job-actions">
+              <button class="btn-job" (click)="runEmbeddingScan()" [disabled]="embeddingRunning">
+                {{ embeddingRunning ? 'Generating...' : 'Generate Embeddings' }}
+              </button>
+              @if (embeddingRunning) {
+                <button class="btn-job btn-cancel" (click)="cancelEmbedding()">Cancel</button>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Thumbnails -->
+        <div class="job-card">
+          <div class="job-header">
+            <span class="job-icon">&#128444;</span>
+            <span class="job-name">Thumbnails</span>
+            @if (thumbsStatus?.running) { <span class="job-badge running">Running</span> }
+          </div>
+          @if (thumbsStatus) {
+            <div class="job-progress">
+              {{ thumbsStatus.generated.toLocaleString() }} generated — {{ thumbsStatus.checked.toLocaleString() }} / {{ thumbsStatus.total.toLocaleString() }} checked
+            </div>
+            <div class="job-actions">
+              <button class="btn-job" (click)="generateThumbnails()" [disabled]="thumbsRunning">
+                {{ thumbsRunning ? 'Generating...' : 'Generate Thumbnails' }}
+              </button>
+              @if (thumbsRunning) {
+                <button class="btn-job btn-cancel" (click)="cancelThumbnails()">Cancel</button>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Face Detection -->
+        <div class="job-card">
+          <div class="job-header">
+            <span class="job-icon">&#128100;</span>
+            <span class="job-name">Face Detection</span>
+            @if (faceScanRunning) { <span class="job-badge running">Running</span> }
+          </div>
+          @if (faceStatus) {
+            <div class="job-progress">
+              {{ faceStatus.faces.toLocaleString() }} faces found — {{ faceStatus.scanned.toLocaleString() }} / {{ faceStatus.total.toLocaleString() }} scanned
+            </div>
+          }
+          <div class="job-actions">
+            <button class="btn-job" (click)="runFaceScan()" [disabled]="faceScanRunning">
+              {{ faceScanRunning ? 'Scanning...' : 'Scan for Faces' }}
+            </button>
+            @if (faceScanRunning) {
+              <button class="btn-job btn-cancel" (click)="cancelFaceScan()">Cancel</button>
+            }
+            <button class="btn-job" (click)="runClustering()" [disabled]="clusteringRunning">
+              {{ clusteringRunning ? 'Clustering...' : 'Cluster Faces' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Photo Ingestion -->
+        <div class="job-card">
+          <div class="job-header">
+            <span class="job-icon">&#128229;</span>
+            <span class="job-name">Photo Ingestion</span>
+          </div>
+          <div class="job-desc">Process files dropped into the inbox directory.</div>
+          <div class="job-actions">
+            <button class="btn-job" (click)="triggerIngest()" [disabled]="ingestRunning">
+              {{ ingestRunning ? 'Processing...' : 'Process Inbox' }}
+            </button>
+          </div>
+          @if (ingestResult) {
+            <div class="job-progress">
+              Imported {{ ingestResult.imported }}, duplicates {{ ingestResult.duplicates }}, errors {{ ingestResult.errors }}
+            </div>
+          }
+        </div>
       </div>
+
+      <!-- ═══════ TOOLS ═══════ -->
+      <!-- ═══════ TOOLS ═══════ -->
+      <div class="section-group">
+        <h3 class="group-title">Tools</h3>
 
       <!-- Date Management -->
       <div class="setting-section">
@@ -160,30 +276,7 @@ import type { CollectionStats } from '../../models/photo.model';
         }
       </div>
 
-      <!-- Face Detection -->
-      <div class="setting-section">
-        <h3>Face Detection</h3>
-        <p class="section-desc">
-          Scan photos for faces, then cluster similar faces into people.
-          Requires face-api.js models in the data directory.
-        </p>
-        <div class="action-row">
-          <button class="btn-action" (click)="runFaceScan()" [disabled]="faceScanRunning">
-            {{ faceScanRunning ? 'Scanning...' : 'Scan for Faces' }}
-          </button>
-          @if (faceScanRunning) {
-            <button class="btn-action btn-cancel" (click)="cancelFaceScan()">Cancel</button>
-          }
-          <button class="btn-action" (click)="runClustering()" [disabled]="clusteringRunning">
-            {{ clusteringRunning ? 'Clustering...' : 'Cluster Faces' }}
-          </button>
-        </div>
-        @if (faceScanResult) {
-          <div class="result-msg">
-            Scanned {{ faceScanResult.scanned }} photos, found {{ faceScanResult.facesFound }} faces
-          </div>
-        }
-      </div>
+      <!-- (Face Detection moved to Processing Jobs above) -->
 
       <!-- Hidden Photos -->
       <div class="setting-section">
@@ -230,6 +323,12 @@ import type { CollectionStats } from '../../models/photo.model';
         }
       </div>
 
+      </div>
+
+      <!-- ═══════ PREFERENCES ═══════ -->
+      <div class="section-group">
+        <h3 class="group-title">Preferences</h3>
+
       <!-- Navigation -->
       <div class="setting-section">
         <h3>Navigation</h3>
@@ -271,6 +370,8 @@ import type { CollectionStats } from '../../models/photo.model';
         }
       </div>
 
+      </div>
+
       <!-- Collection info -->
       @if (stats) {
         <div class="setting-section">
@@ -293,6 +394,83 @@ import type { CollectionStats } from '../../models/photo.model';
       max-width: 700px;
 
       h2 { margin: 0 0 24px; color: #ddd; font-size: 1.2rem; }
+    }
+
+    .section-group {
+      margin-bottom: 24px;
+    }
+
+    .group-title {
+      margin: 0 0 4px;
+      font-size: 1rem;
+      color: #ddd;
+      font-weight: 600;
+    }
+
+    .group-desc {
+      margin: 0 0 12px;
+      font-size: 0.8rem;
+      color: #666;
+    }
+
+    .job-card {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+    }
+
+    .job-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .job-icon { font-size: 1.1rem; }
+    .job-name { font-size: 0.9rem; color: #ddd; font-weight: 500; }
+
+    .job-badge {
+      font-size: 0.65rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-left: auto;
+
+      &.running { background: #1a3a1a; border: 1px solid #2a5a2a; color: #8c8; }
+    }
+
+    .job-progress {
+      font-size: 0.8rem;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    .job-desc {
+      font-size: 0.78rem;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .job-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-job {
+      background: #2a2a2a;
+      border: 1px solid #444;
+      color: #ddd;
+      padding: 5px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+
+      &:hover { background: #333; }
+      &:disabled { opacity: 0.5; cursor: not-allowed; }
+      &.btn-cancel { color: #e88; border-color: #844; &:hover { background: #3a1a1a; } }
     }
 
     .setting-section {
@@ -398,8 +576,9 @@ export class SettingsComponent implements OnInit {
   dlnaRunning = false;
   tvAlbumId: number | null = null;
 
-  faceScanRunning = false;
-  faceScanResult: { scanned: number; facesFound: number } | null = null;
+  faceScanRunning = true; // assume running until status confirms
+  faceStatus: { running: boolean; total: number; scanned: number; faces: number; remaining: number } | null = null;
+  private facePollTimer: ReturnType<typeof setInterval> | null = null;
   clusteringRunning = false;
   gpsRunning = true; // assume running until status confirms
   gpsStatus: { running: boolean; checked: number; found: number; total: number } | null = null;
@@ -426,6 +605,7 @@ export class SettingsComponent implements OnInit {
     this.refreshEmbeddingStatus();
     this.refreshGpsStatus();
     this.refreshThumbsStatus();
+    this.refreshFaceStatus();
     this.api.getTvStatus().subscribe({ next: (s) => { this.dlnaRunning = s.dlna.running; this.cdr.detectChanges(); } });
     this.api.getAlbums().subscribe({ next: (albums) => {
       const tv = albums.find((a: { name: string }) => a.name === 'TV Slideshow');
@@ -560,26 +740,37 @@ export class SettingsComponent implements OnInit {
     });
   }
 
+  private refreshFaceStatus(): void {
+    this.api.getFaceScanStatus().subscribe({ next: (s) => {
+      this.faceStatus = s;
+      this.faceScanRunning = s.running;
+      if (s.running && !this.facePollTimer) {
+        this.facePollTimer = setInterval(() => this.refreshFaceStatus(), 3000);
+      }
+      if (!s.running && this.facePollTimer) {
+        clearInterval(this.facePollTimer);
+        this.facePollTimer = null;
+      }
+      this.cdr.detectChanges();
+    }});
+  }
+
   cancelFaceScan(): void {
     this.api.cancelFaceScan().subscribe({
       next: () => {
-        this.faceScanResult = { scanned: 0, facesFound: 0 };
-        this.cdr.detectChanges();
+        this.faceScanRunning = false;
+        if (this.facePollTimer) { clearInterval(this.facePollTimer); this.facePollTimer = null; }
+        this.refreshFaceStatus();
       },
     });
   }
 
   runFaceScan(): void {
     this.faceScanRunning = true;
-    this.faceScanResult = null;
-    this.api.triggerFaceScan(50).subscribe({
-      next: (result) => {
-        this.faceScanResult = result;
-        this.faceScanRunning = false;
-        this.cdr.detectChanges();
-      },
-      error: () => { this.faceScanRunning = false; },
-    });
+    this.api.triggerFaceScan(50).subscribe();
+    if (!this.facePollTimer) {
+      this.facePollTimer = setInterval(() => this.refreshFaceStatus(), 3000);
+    }
   }
 
   runClustering(): void {

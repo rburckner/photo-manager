@@ -300,6 +300,10 @@ export class ApiService {
     return this.http.post<{ ok: boolean }>(`${this.baseUrl}/tv/dlna/stop`, {});
   }
 
+  getFaceScanStatus(): Observable<{ running: boolean; total: number; scanned: number; faces: number; remaining: number }> {
+    return this.http.get<{ running: boolean; total: number; scanned: number; faces: number; remaining: number }>(`${this.baseUrl}/faces/status`);
+  }
+
   cancelFaceScan(): Observable<{ ok: boolean }> {
     return this.http.post<{ ok: boolean }>(`${this.baseUrl}/faces/cancel`, {});
   }

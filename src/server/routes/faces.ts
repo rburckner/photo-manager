@@ -88,12 +88,13 @@ export async function faceRoutes(
     return faceRepo.getFacesByPhoto(photoId);
   });
 
-  // POST /api/faces/scan — trigger face detection in a worker thread
+  // POST /api/faces/scan — trigger face detection (non-blocking)
   app.post<{ Body: { batch_size?: number } }>('/api/faces/scan', async (request) => {
     const batchSize = request.body?.batch_size ?? 50;
-    const { runFaceScanWorker } = await import('../../scanner/faces.js');
-    const result = await runFaceScanWorker(photoRepo, faceRepo, config, batchSize);
-    return result;
+    const { runFaceScanWorker, isFaceScanRunning } = await import('../../scanner/faces.js');
+    if (isFaceScanRunning()) return { ok: true, message: 'Already running' };
+    void runFaceScanWorker(photoRepo, faceRepo, config, batchSize);
+    return { ok: true, message: 'Face scan started' };
   });
 
   // POST /api/faces/cancel — cancel a running face scan
@@ -103,10 +104,16 @@ export async function faceRoutes(
     return { ok: cancelled, message: cancelled ? 'Cancelling...' : 'No scan running' };
   });
 
-  // GET /api/faces/status — check if face scan is running
+  // GET /api/faces/status — check face scan progress
   app.get('/api/faces/status', async () => {
     const { isFaceScanRunning } = await import('../../scanner/faces.js');
-    return { running: isFaceScanRunning() };
+    const totalPhotos = (faceRepo as unknown as { db: { prepare: (s: string) => { get: () => { c: number } } } }).db
+      .prepare('SELECT count(*) as c FROM photos WHERE is_video = 0').get().c;
+    const scannedCount = (faceRepo as unknown as { db: { prepare: (s: string) => { get: () => { c: number } } } }).db
+      .prepare('SELECT count(*) as c FROM face_scan_status').get().c;
+    const faceCount = (faceRepo as unknown as { db: { prepare: (s: string) => { get: () => { c: number } } } }).db
+      .prepare('SELECT count(*) as c FROM faces').get().c;
+    return { running: isFaceScanRunning(), total: totalPhotos, scanned: scannedCount, faces: faceCount, remaining: totalPhotos - scannedCount };
   });
 
   // POST /api/faces/cluster — run clustering on unassigned faces
