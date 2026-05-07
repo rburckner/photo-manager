@@ -92,6 +92,39 @@ import { CommonModule } from '@angular/common';
       </div>
 
       <div class="help-section">
+        <h3>Network &amp; Firewall</h3>
+        <p>The following ports must be open on the host for full functionality:</p>
+        <table class="feature-table">
+          <tbody>
+            <tr><th colspan="3">Required Ports</th></tr>
+            <tr><td><strong>{{ webPort }}/tcp</strong></td><td>Web UI &amp; API</td><td>Main application. Required for all access.</td></tr>
+            <tr><td><strong>8200/tcp</strong></td><td>DLNA content server</td><td>Serves photos to smart TVs. Only needed if DLNA is enabled.</td></tr>
+            <tr><td><strong>1900/udp</strong></td><td>SSDP discovery</td><td>Allows TVs to auto-discover the DLNA server. Only needed if DLNA is enabled.</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top: 12px"><strong>Firewall commands (Ubuntu/Debian with ufw):</strong></p>
+        <div class="code-block">
+          <code>sudo ufw allow {{ webPort }}/tcp    # Web UI</code><br>
+          <code>sudo ufw allow 8200/tcp   # DLNA content</code><br>
+          <code>sudo ufw allow 1900/udp   # SSDP discovery</code>
+        </div>
+        <p style="margin-top: 12px"><strong>Firewall commands (RHEL/Fedora with firewalld):</strong></p>
+        <div class="code-block">
+          <code>sudo firewall-cmd --add-port={{ webPort }}/tcp --permanent</code><br>
+          <code>sudo firewall-cmd --add-port=8200/tcp --permanent</code><br>
+          <code>sudo firewall-cmd --add-port=1900/udp --permanent</code><br>
+          <code>sudo firewall-cmd --reload</code>
+        </div>
+        <p style="margin-top: 12px">
+          Run <code>./scripts/check-env.sh</code> on the host to automatically check port availability and firewall rules.
+        </p>
+        <p>
+          By default, the server only accepts connections from private IPs (10.x, 192.168.x, 172.16-31.x).
+          Set <code>PM_ALLOW_REMOTE=true</code> to allow access via Tailscale or other VPNs.
+        </p>
+      </div>
+
+      <div class="help-section">
         <h3>CLI Commands</h3>
         <table class="feature-table">
           <tbody>
@@ -153,6 +186,18 @@ import { CommonModule } from '@angular/common';
       color: #ccc;
     }
 
+    .code-block {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      line-height: 1.6;
+      color: #aaa;
+      overflow-x: auto;
+    }
+
     .shortcut-table, .feature-table {
       width: 100%;
       border-collapse: collapse;
@@ -178,4 +223,6 @@ import { CommonModule } from '@angular/common';
     }
   `],
 })
-export class HelpComponent {}
+export class HelpComponent {
+  webPort = window.location.port || '80';
+}
