@@ -1,8 +1,10 @@
 import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import { mkdirSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, extname } from 'node:path';
 import { getLogger } from '../shared/logger.js';
+
+const HEIC_EXTENSIONS = new Set(['.heic', '.heif']);
 
 export interface ThumbnailOptions {
   size: number;
@@ -40,7 +42,24 @@ export async function generateThumbnail(
     if (isVideo) {
       await generateVideoThumbnail(filePath, thumbAbsPath, options.size);
     } else {
-      await generateImageThumbnail(filePath, thumbAbsPath, options.size, options.quality);
+      try {
+        await generateImageThumbnail(filePath, thumbAbsPath, options.size, options.quality);
+      } catch (err) {
+        // HEIC decode may fail if system libheif plugins are missing.
+        // Fall back to the matching JPG if one exists in the same directory.
+        const ext = extname(filePath).toLowerCase();
+        if (HEIC_EXTENSIONS.has(ext)) {
+          const jpgPath = filePath.slice(0, -ext.length) + '.jpg';
+          if (existsSync(jpgPath)) {
+            log.debug({ filePath }, 'HEIC failed, falling back to JPG for thumbnail');
+            await generateImageThumbnail(jpgPath, thumbAbsPath, options.size, options.quality);
+          } else {
+            throw err;
+          }
+        } else {
+          throw err;
+        }
+      }
     }
     return thumbRelPath;
   } catch (err) {
