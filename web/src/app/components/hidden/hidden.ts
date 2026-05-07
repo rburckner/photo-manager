@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
 import { SelectionService } from '../../services/selection.service';
@@ -65,7 +65,7 @@ import type { Photo } from '../../models/photo.model';
     .grid-loading, .empty { grid-column: 1/-1; text-align: center; padding: 40px; color: #666; }
   `],
 })
-export class HiddenComponent implements OnInit {
+export class HiddenComponent implements OnInit, OnDestroy {
   photos: Photo[] = [];
   loading = false;
   totalPhotos = 0;
@@ -79,7 +79,14 @@ export class HiddenComponent implements OnInit {
     private readonly cdr: ChangeDetectorRef,
   ) {}
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.selection.enterSelectionMode();
+    this.load();
+  }
+
+  ngOnDestroy(): void {
+    this.selection.exitSelectionMode();
+  }
 
   load(): void {
     if (this.loading || !this.hasMore) return;
@@ -113,10 +120,14 @@ export class HiddenComponent implements OnInit {
     const ids = this.selection.ids;
     this.api.bulkHide(ids, false).subscribe({
       next: () => {
-        this.photos = this.photos.filter((p) => !ids.includes(p.id));
-        this.totalPhotos -= ids.length;
-        this.selection.exitSelectionMode();
-        this.cdr.detectChanges();
+        this.selection.clear();
+        this.selection.enterSelectionMode();
+        // Reload the full list
+        this.photos = [];
+        this.page = 1;
+        this.hasMore = true;
+        this.totalPhotos = 0;
+        this.load();
       },
     });
   }
