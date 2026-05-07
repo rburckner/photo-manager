@@ -81,6 +81,15 @@ export class ApiService {
     return this.http.get<Photo[]>(`${this.baseUrl}/photos/bad-dates`, { params: { limit: limit.toString() } });
   }
 
+  bulkHide(ids: number[], hidden: boolean): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/bulk/hide`, { photo_ids: ids, hidden });
+  }
+
+  getHiddenPhotos(page: number = 1, limit: number = 50): Observable<PaginatedResponse<Photo>> {
+    const params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
+    return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/photos/hidden`, { params });
+  }
+
   bulkSetDate(ids: number[], date: string): Observable<{ ok: boolean }> {
     return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/bulk/set-date`, { photo_ids: ids, date });
   }

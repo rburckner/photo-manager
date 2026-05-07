@@ -258,6 +258,26 @@ export async function photoRoutes(
     return photoRepo.getDuplicates();
   });
 
+  // POST /api/photos/bulk/hide — hide photos from all views
+  app.post<{ Body: { photo_ids: number[]; hidden: boolean } }>('/api/photos/bulk/hide', async (request, reply) => {
+    const { photo_ids, hidden } = request.body;
+    if (!Array.isArray(photo_ids) || photo_ids.length === 0) {
+      return reply.code(400).send({ error: 'photo_ids required' });
+    }
+    photoRepo.bulkSetHidden(photo_ids, hidden);
+    logActivity(db, hidden ? 'photos_hidden' : 'photos_unhidden', `${photo_ids.length} photos`);
+    return { ok: true, count: photo_ids.length };
+  });
+
+  // GET /api/photos/hidden — view hidden photos
+  app.get<{ Querystring: { page?: string; limit?: string } }>('/api/photos/hidden', async (request) => {
+    const page = Math.max(1, parseInt(request.query.page ?? '1', 10));
+    const limit = Math.min(200, parseInt(request.query.limit ?? '50', 10));
+    const offset = (page - 1) * limit;
+    const { photos, total } = photoRepo.getHiddenPhotos(limit, offset);
+    return { photos, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  });
+
   // POST /api/photos/bulk/set-date — bulk update date_taken
   app.post<{ Body: { photo_ids: number[]; date: string } }>('/api/photos/bulk/set-date', async (request, reply) => {
     const { photo_ids, date } = request.body;

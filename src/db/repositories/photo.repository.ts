@@ -76,23 +76,23 @@ export class PhotoRepository {
 
     if (opts.folder) {
       const photos = this.db.prepare(
-        `SELECT * FROM photos WHERE folder_path = ? ${orderBy} LIMIT ? OFFSET ?`,
+        `SELECT * FROM photos WHERE folder_path = ? AND is_hidden = 0 ${orderBy} LIMIT ? OFFSET ?`,
       ).all(opts.folder, opts.limit, opts.offset) as PhotoRow[];
       const total = (this.db.prepare(
-        'SELECT count(*) as count FROM photos WHERE folder_path = ?',
+        'SELECT count(*) as count FROM photos WHERE folder_path = ? AND is_hidden = 0',
       ).get(opts.folder) as { count: number }).count;
       return { photos, total };
     }
 
     const photos = this.db.prepare(
-      `SELECT * FROM photos ${orderBy} LIMIT ? OFFSET ?`,
+      `SELECT * FROM photos WHERE is_hidden = 0 ${orderBy} LIMIT ? OFFSET ?`,
     ).all(opts.limit, opts.offset) as PhotoRow[];
-    const total = this.countAll();
+    const total = (this.db.prepare('SELECT count(*) as count FROM photos WHERE is_hidden = 0').get() as { count: number }).count;
     return { photos, total };
   }
 
   getTimeline(opts: { limit: number; offset: number; before?: string; after?: string }): PhotoRow[] {
-    const conditions: string[] = [];
+    const conditions: string[] = ['is_hidden = 0'];
     const params: unknown[] = [];
 
     if (opts.before) {
@@ -123,6 +123,26 @@ export class PhotoRepository {
 
   setThumbnailPath(id: number, thumbnailPath: string): void {
     this.db.prepare('UPDATE photos SET thumbnail_path = ? WHERE id = ?').run(thumbnailPath, id);
+  }
+
+  bulkSetHidden(ids: number[], hidden: boolean): void {
+    const stmt = this.db.prepare('UPDATE photos SET is_hidden = ? WHERE id = ?');
+    const run = this.db.transaction((photoIds: number[]) => {
+      for (const id of photoIds) {
+        stmt.run(hidden ? 1 : 0, id);
+      }
+    });
+    run(ids);
+  }
+
+  getHiddenPhotos(limit: number, offset: number): { photos: PhotoRow[]; total: number } {
+    const photos = this.db.prepare(
+      'SELECT * FROM photos WHERE is_hidden = 1 ORDER BY COALESCE(date_taken, date_modified) DESC LIMIT ? OFFSET ?',
+    ).all(limit, offset) as PhotoRow[];
+    const total = (this.db.prepare(
+      'SELECT count(*) as count FROM photos WHERE is_hidden = 1',
+    ).get() as { count: number }).count;
+    return { photos, total };
   }
 
   bulkSetDate(ids: number[], date: string): void {
@@ -166,10 +186,10 @@ export class PhotoRepository {
 
   getFavorites(limit: number, offset: number): { photos: PhotoRow[]; total: number } {
     const photos = this.db.prepare(
-      'SELECT * FROM photos WHERE is_favorite = 1 ORDER BY COALESCE(date_taken, date_modified) DESC LIMIT ? OFFSET ?',
+      'SELECT * FROM photos WHERE is_favorite = 1 AND is_hidden = 0 ORDER BY COALESCE(date_taken, date_modified) DESC LIMIT ? OFFSET ?',
     ).all(limit, offset) as PhotoRow[];
     const total = (this.db.prepare(
-      'SELECT count(*) as count FROM photos WHERE is_favorite = 1',
+      'SELECT count(*) as count FROM photos WHERE is_favorite = 1 AND is_hidden = 0',
     ).get() as { count: number }).count;
     return { photos, total };
   }
@@ -289,14 +309,14 @@ export class PhotoRepository {
     const pattern = `%${query}%`;
     const photos = this.db.prepare(`
       SELECT * FROM photos
-      WHERE file_name LIKE ? OR folder_path LIKE ? OR camera_make LIKE ? OR camera_model LIKE ?
+      WHERE is_hidden = 0 AND (file_name LIKE ? OR folder_path LIKE ? OR camera_make LIKE ? OR camera_model LIKE ?)
       ORDER BY COALESCE(date_taken, date_modified) DESC
       LIMIT ? OFFSET ?
     `).all(pattern, pattern, pattern, pattern, limit, offset) as PhotoRow[];
 
     const total = (this.db.prepare(`
       SELECT count(*) as count FROM photos
-      WHERE file_name LIKE ? OR folder_path LIKE ? OR camera_make LIKE ? OR camera_model LIKE ?
+      WHERE is_hidden = 0 AND (file_name LIKE ? OR folder_path LIKE ? OR camera_make LIKE ? OR camera_model LIKE ?)
     `).get(pattern, pattern, pattern, pattern) as { count: number }).count;
 
     return { photos, total };

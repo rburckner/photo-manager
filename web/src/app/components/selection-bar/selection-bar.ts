@@ -20,6 +20,7 @@ import type { Album } from '../../models/photo.model';
           <button class="bar-btn" (click)="bulkFavorite(true)">&#9733; Favorite</button>
           <button class="bar-btn" (click)="bulkFavorite(false)">&#9734; Unfavorite</button>
           <button class="bar-btn" (click)="exportSelected()">&#8615; Export Zip</button>
+          <button class="bar-btn" (click)="bulkHide(true)">&#128065; Hide</button>
           <div class="date-picker-wrap">
             <button class="bar-btn" (click)="showDatePicker = !showDatePicker">&#128197; Set Date</button>
             @if (showDatePicker) {
@@ -206,6 +207,18 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
     this.selection.exitSelectionMode();
     this.showAlbumDropdown = false;
     this.actionMessage = '';
+  }
+
+  bulkHide(hidden: boolean): void {
+    const ids = this.selection.ids;
+    this.api.bulkHide(ids, hidden).subscribe({
+      next: () => {
+        this.actionMessage = `${hidden ? 'Hidden' : 'Unhidden'} ${ids.length} photos`;
+        this.selection.exitSelectionMode();
+        this.cdr.detectChanges();
+        setTimeout(() => { this.actionMessage = ''; this.cdr.detectChanges(); }, 2000);
+      },
+    });
   }
 
   bulkSetDate(event: Event): void {

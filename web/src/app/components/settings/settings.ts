@@ -118,6 +118,20 @@ import type { CollectionStats } from '../../models/photo.model';
         }
       </div>
 
+      <!-- Hidden Photos -->
+      <div class="setting-section">
+        <h3>Hidden Photos</h3>
+        <p class="section-desc">
+          Photos you've hidden are kept on disk but excluded from timeline, search, and albums.
+          View and manage them here.
+        </p>
+        <div class="action-row">
+          <a href="/hidden" class="btn-action" style="text-decoration:none">
+            View Hidden Photos
+          </a>
+        </div>
+      </div>
+
       <!-- Database Backup -->
       <div class="setting-section">
         <h3>Database Backup</h3>
