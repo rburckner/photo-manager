@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import type { Photo, TimelineResponse, CollectionStats, PaginatedResponse, FolderEntry } from '../models/photo.model';
+import type { Photo, TimelineResponse, CollectionStats, PaginatedResponse, FolderEntry, Album } from '../models/photo.model';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -36,6 +36,36 @@ export class ApiService {
       params = params.set('folder', folder);
     }
     return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/photos`, { params });
+  }
+
+  // Albums
+  getAlbums(): Observable<Album[]> {
+    return this.http.get<Album[]>(`${this.baseUrl}/albums`);
+  }
+
+  createAlbum(name: string, description?: string): Observable<Album> {
+    return this.http.post<Album>(`${this.baseUrl}/albums`, { name, description });
+  }
+
+  updateAlbum(id: number, data: { name?: string; description?: string; cover_photo_id?: number | null }): Observable<Album> {
+    return this.http.put<Album>(`${this.baseUrl}/albums/${id}`, data);
+  }
+
+  deleteAlbum(id: number): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/albums/${id}`);
+  }
+
+  getAlbumPhotos(albumId: number, page: number = 1, limit: number = 100): Observable<PaginatedResponse<Photo>> {
+    const params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
+    return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/albums/${albumId}/photos`, { params });
+  }
+
+  addPhotosToAlbum(albumId: number, photoIds: number[]): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/albums/${albumId}/photos`, { photo_ids: photoIds });
+  }
+
+  removePhotosFromAlbum(albumId: number, photoIds: number[]): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/albums/${albumId}/photos`, { body: { photo_ids: photoIds } });
   }
 
   getThumbnailUrl(id: number): string {

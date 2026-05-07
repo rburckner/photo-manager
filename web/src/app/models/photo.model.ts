@@ -70,6 +70,17 @@ export interface FolderTreeNode {
   expanded: boolean;
 }
 
+export interface Album {
+  id: number;
+  name: string;
+  description: string | null;
+  cover_photo_id: number | null;
+  photo_count: number;
+  cover_thumbnail_path: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CollectionStats {
   total: number;
   images: number;

@@ -16,7 +16,7 @@ export const routes: Routes = [
       },
       {
         path: 'albums',
-        loadComponent: () => import('./components/timeline/timeline').then((m) => m.TimelineComponent), // placeholder
+        loadComponent: () => import('./components/albums/albums').then((m) => m.AlbumsComponent),
       },
     ],
   },

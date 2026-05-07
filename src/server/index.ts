@@ -7,7 +7,9 @@ import { initLogger, getLogger } from '../shared/logger.js';
 import { getDb, closeDb } from '../db/connection.js';
 import { runMigrations } from '../db/migrate.js';
 import { PhotoRepository } from '../db/repositories/photo.repository.js';
+import { AlbumRepository } from '../db/repositories/album.repository.js';
 import { photoRoutes } from './routes/photos.js';
+import { albumRoutes } from './routes/albums.js';
 
 const config = loadConfig();
 const log = initLogger({ logLevel: config.logLevel });
@@ -37,9 +39,11 @@ async function start(): Promise<void> {
   runMigrations(db);
 
   const photoRepo = new PhotoRepository(db);
+  const albumRepo = new AlbumRepository(db);
 
   // Register API routes
   await app.register(photoRoutes, { photoRepo, config });
+  await app.register(albumRoutes, { albumRepo });
 
   // Serve Angular build if it exists (production mode)
   const webDistPath = join(import.meta.dirname, '../../web/dist/photo-manager/browser');
