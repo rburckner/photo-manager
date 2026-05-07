@@ -104,6 +104,7 @@ interface YearMonth {
       flex: 1;
       display: flex;
       overflow: hidden;
+      min-height: 0; /* flex child needs this to shrink */
     }
 
     .bad-photos {
@@ -112,6 +113,7 @@ interface YearMonth {
       flex-direction: column;
       overflow: hidden;
       border-right: 1px solid #333;
+      min-height: 0;
     }
 
     .section-label {
@@ -129,13 +131,16 @@ interface YearMonth {
       padding: 8px;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      grid-auto-rows: 120px;
       gap: 4px;
       align-content: start;
+      min-height: 0;
     }
 
     .photo-card {
       position: relative;
-      aspect-ratio: 1;
+      width: 100%;
+      height: 100%;
       overflow: hidden;
       border-radius: 4px;
       cursor: grab;
