@@ -159,8 +159,8 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
     /* ── Face slider ── */
     .face-slider {
       display: flex;
-      gap: 12px;
-      padding: 16px 20px;
+      gap: 16px;
+      padding: 20px 24px;
       overflow-x: auto;
       flex-shrink: 0;
       border-bottom: 1px solid #333;
@@ -172,11 +172,11 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
       align-items: center;
       cursor: pointer;
       flex-shrink: 0;
-      width: 72px;
+      width: 100px;
 
       img {
-        width: 56px;
-        height: 56px;
+        width: 84px;
+        height: 84px;
         border-radius: 50%;
         object-fit: cover;
         border: 2px solid transparent;
@@ -184,8 +184,8 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
       }
 
       .no-face {
-        width: 56px;
-        height: 56px;
+        width: 84px;
+        height: 84px;
         border-radius: 50%;
         background: #333;
         display: flex;
@@ -201,7 +201,7 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
     }
 
     .face-name {
-      font-size: 0.7rem;
+      font-size: 0.8rem;
       color: #aaa;
       margin-top: 4px;
       text-align: center;
@@ -212,7 +212,7 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
     }
 
     .face-count {
-      font-size: 0.6rem;
+      font-size: 0.7rem;
       color: #666;
     }
 
