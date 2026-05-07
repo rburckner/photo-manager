@@ -119,6 +119,26 @@ export class ApiService {
     return this.http.post<{ imported: number; duplicates: number; errors: number }>(`${this.baseUrl}/ingest`, {});
   }
 
+  getExportUrl(photoIds: number[]): string {
+    return `${this.baseUrl}/photos/export`;
+  }
+
+  exportPhotos(photoIds: number[]): void {
+    // POST with photo_ids and download the zip response
+    this.http.post(`${this.baseUrl}/photos/export`, { photo_ids: photoIds }, {
+      responseType: 'blob',
+    }).subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `photos-export-${Date.now()}.zip`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      },
+    });
+  }
+
   // Map & Search
   getMapPoints(limit: number = 5000): Observable<MapPoint[]> {
     return this.http.get<MapPoint[]>(`${this.baseUrl}/photos/map`, { params: { limit: limit.toString() } });

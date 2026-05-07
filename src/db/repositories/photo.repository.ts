@@ -128,9 +128,26 @@ export class PhotoRepository {
   }
 
   removeFromIndex(id: number): void {
+    const photo = this.findById(id);
+    if (photo) {
+      // Log for manual NAS cleanup
+      this.db.prepare(
+        'INSERT INTO cleanup_log (file_path, file_hash, reason) VALUES (?, ?, ?)',
+      ).run(photo.file_path, photo.file_hash, 'duplicate');
+    }
     this.db.prepare('DELETE FROM album_photos WHERE photo_id = ?').run(id);
     this.db.prepare('DELETE FROM photo_tags WHERE photo_id = ?').run(id);
     this.db.prepare('DELETE FROM photos WHERE id = ?').run(id);
+  }
+
+  getCleanupLog(): Array<{ id: number; file_path: string; file_hash: string; reason: string; removed_at: string }> {
+    return this.db.prepare(
+      'SELECT * FROM cleanup_log ORDER BY removed_at DESC',
+    ).all() as Array<{ id: number; file_path: string; file_hash: string; reason: string; removed_at: string }>;
+  }
+
+  clearCleanupEntry(id: number): void {
+    this.db.prepare('DELETE FROM cleanup_log WHERE id = ?').run(id);
   }
 
   getDuplicates(): Array<{ file_hash: string; count: number; photos: Array<{ id: number; file_path: string; file_size: number; mime_type: string }> }> {

@@ -19,6 +19,7 @@ import type { Album } from '../../models/photo.model';
         <div class="selection-actions">
           <button class="bar-btn" (click)="bulkFavorite(true)">&#9733; Favorite</button>
           <button class="bar-btn" (click)="bulkFavorite(false)">&#9734; Unfavorite</button>
+          <button class="bar-btn" (click)="exportSelected()">&#8615; Export Zip</button>
           <div class="album-dropdown">
             <button class="bar-btn" (click)="toggleAlbumDropdown()">+ Add to Album</button>
             @if (showAlbumDropdown) {
@@ -183,6 +184,14 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
     this.selection.exitSelectionMode();
     this.showAlbumDropdown = false;
     this.actionMessage = '';
+  }
+
+  exportSelected(): void {
+    const ids = this.selection.ids;
+    this.api.exportPhotos(ids);
+    this.actionMessage = `Preparing zip of ${ids.length} photos...`;
+    this.cdr.detectChanges();
+    setTimeout(() => { this.actionMessage = ''; this.cdr.detectChanges(); }, 3000);
   }
 
   bulkFavorite(value: boolean): void {

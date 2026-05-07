@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { join } from 'node:path';
+import { join, extname } from 'node:path';
 import { createReadStream, existsSync } from 'node:fs';
 import { PhotoRepository } from '../../db/repositories/photo.repository.js';
 import type { AppConfig } from '../../shared/types.js';
@@ -157,6 +157,50 @@ export async function photoRoutes(
   // GET /api/photos/folders — list folder tree
   app.get('/api/photos/folders', async () => {
     return photoRepo.getFolders();
+  });
+
+  // GET /api/cleanup — files removed from index, pending manual NAS cleanup
+  app.get('/api/cleanup', async () => {
+    return photoRepo.getCleanupLog();
+  });
+
+  // DELETE /api/cleanup/:id — mark a cleanup entry as done
+  app.delete<{ Params: { id: string } }>('/api/cleanup/:id', async (request) => {
+    photoRepo.clearCleanupEntry(parseInt(request.params.id, 10));
+    return { ok: true };
+  });
+
+  // POST /api/photos/export — generate zip of selected photos
+  app.post<{ Body: { photo_ids: number[] } }>('/api/photos/export', async (request, reply) => {
+    const { photo_ids } = request.body;
+    if (!Array.isArray(photo_ids) || photo_ids.length === 0) {
+      return reply.code(400).send({ error: 'photo_ids array is required' });
+    }
+
+    const archiver = await import('archiver');
+    const archive = archiver.default('zip', { zlib: { level: 1 } }); // Fast compression
+
+    reply.header('Content-Type', 'application/zip');
+    reply.header('Content-Disposition', `attachment; filename="photos-export-${Date.now()}.zip"`);
+
+    // Pipe archive to response
+    void reply.send(archive);
+
+    for (const id of photo_ids) {
+      const photo = photoRepo.findById(id);
+      if (!photo) continue;
+
+      const filePath = join(config.mediaRoot, photo.file_path);
+      if (existsSync(filePath)) {
+        // Use the last segment of folder_path + filename for zip structure
+        const zipPath = photo.folder_path
+          ? `${photo.folder_path.split('/').pop()}/${photo.file_name}${extname(photo.file_path)}`
+          : `${photo.file_name}${extname(photo.file_path)}`;
+        archive.file(filePath, { name: zipPath });
+      }
+    }
+
+    await archive.finalize();
   });
 
   // DELETE /api/photos/:id — remove from index only (NAS files untouched)
