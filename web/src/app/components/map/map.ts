@@ -65,6 +65,17 @@ L.Icon.Default.mergeOptions({
 
     .map {
       flex: 1;
+      min-height: 0; /* flex child needs this to shrink */
+    }
+
+    :host ::ng-deep .leaflet-container {
+      height: 100%;
+      width: 100%;
+      background: #1a1a1a;
+    }
+
+    :host ::ng-deep .leaflet-tile-pane {
+      opacity: 1;
     }
 
     .map-loading {
@@ -148,7 +159,7 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.map = L.map(this.mapEl.nativeElement, {
-      center: [39.8283, -98.5795], // Center of US
+      center: [39.8283, -98.5795],
       zoom: 4,
       zoomControl: true,
     });
@@ -157,6 +168,11 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
       attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 19,
     }).addTo(this.map);
+
+    // Leaflet needs a resize kick after the flex container settles
+    setTimeout(() => {
+      this.map?.invalidateSize();
+    }, 100);
 
     // Render markers if data already loaded
     if (this.points.length > 0) {
