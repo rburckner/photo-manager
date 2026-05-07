@@ -233,104 +233,14 @@ import type { CollectionStats } from '../../models/photo.model';
         }
       </div>
 
-      <!-- GPS Re-scan -->
-      <div class="setting-section">
-        <h3>GPS Coordinates</h3>
-        <p class="section-desc">
-          Re-extract GPS data from photos missing coordinates.
-        </p>
-        @if (gpsStatus) {
-          <div class="status-row">
-            <span class="status-label">Progress:</span>
-            <span class="status-value">{{ gpsStatus.found.toLocaleString() }} GPS found, {{ gpsStatus.checked.toLocaleString() }} / {{ gpsStatus.total.toLocaleString() }} checked</span>
-          </div>
-          <div class="action-row" style="margin-top: 8px">
-            <button class="btn-action" (click)="rescanGps()" [disabled]="gpsRunning">
-              {{ gpsRunning ? 'Scanning...' : 'Re-scan GPS Data' }}
-            </button>
-            @if (gpsRunning) {
-              <button class="btn-action btn-cancel" (click)="cancelGpsScan()">Cancel</button>
-            }
-          </div>
-        }
-      </div>
-
-      <!-- Visual Similarity -->
-      <div class="setting-section">
-        <h3>Visual Similarity</h3>
-        <p class="section-desc">
-          Generate image embeddings using MobileNet. Once embedded, "Find Similar" in the
-          lightbox will find photos that look visually alike — regardless of date or metadata.
-          First run downloads the model (~16MB) from TensorFlow Hub.
-        </p>
-        @if (embeddingStatus) {
-          <div class="status-row">
-            <span class="status-label">Progress:</span>
-            <span class="status-value">{{ embeddingStatus.embedded.toLocaleString() }} / {{ embeddingStatus.total.toLocaleString() }} photos embedded ({{ embeddingStatus.remaining.toLocaleString() }} remaining)</span>
-          </div>
-          @if (embeddingStatus.running) {
-            <div class="status-row">
-              <span class="status-value" style="color: #8c8">Embedding scan is running...</span>
-            </div>
-          }
-        }
-        @if (embeddingStatus) {
-          <div class="action-row" style="margin-top: 8px">
-            <button class="btn-action" (click)="runEmbeddingScan()" [disabled]="embeddingRunning">
-              {{ embeddingRunning ? 'Generating...' : 'Generate Embeddings' }}
-            </button>
-            @if (embeddingRunning) {
-              <button class="btn-action btn-cancel" (click)="cancelEmbedding()">Cancel</button>
-            }
-          </div>
-        }
-        @if (!embeddingRunning && embeddingStatus && embeddingStatus.remaining === 0) {
-          <div class="result-msg">
-            All photos embedded
-          </div>
-        }
-      </div>
-
-      <!-- Thumbnails -->
-      <div class="setting-section">
-        <h3>Thumbnails</h3>
-        <p class="section-desc">
-          Generate missing thumbnails for photos and videos (requires ffmpeg for videos).
-        </p>
-        @if (thumbsStatus) {
-          <div class="status-row">
-            <span class="status-label">Progress:</span>
-            <span class="status-value">{{ thumbsStatus.generated.toLocaleString() }} generated, {{ thumbsStatus.checked.toLocaleString() }} / {{ thumbsStatus.total.toLocaleString() }} checked</span>
-          </div>
-          <div class="action-row" style="margin-top: 8px">
-            <button class="btn-action" (click)="generateThumbnails()" [disabled]="thumbsRunning">
-              {{ thumbsRunning ? 'Generating...' : 'Generate Missing Thumbnails' }}
-            </button>
-            @if (thumbsRunning) {
-              <button class="btn-action btn-cancel" (click)="cancelThumbnails()">Cancel</button>
-            }
-          </div>
-        }
-        @if (!thumbsRunning && thumbsStatus && thumbsStatus.total === 0) {
-          <div class="result-msg">
-            All photos have thumbnails
-          </div>
-        }
-      </div>
-
-      <!-- (Face Detection moved to Processing Jobs above) -->
-
       <!-- Hidden Photos -->
       <div class="setting-section">
         <h3>Hidden Photos</h3>
         <p class="section-desc">
           Photos you've hidden are kept on disk but excluded from timeline, search, and albums.
-          View and manage them here.
         </p>
         <div class="action-row">
-          <a href="/hidden" class="btn-action" style="text-decoration:none">
-            View Hidden Photos
-          </a>
+          <a href="/hidden" class="btn-action" style="text-decoration:none">View Hidden Photos</a>
         </div>
       </div>
 
@@ -338,31 +248,11 @@ import type { CollectionStats } from '../../models/photo.model';
       <div class="setting-section">
         <h3>Database Backup</h3>
         <p class="section-desc">
-          Download the SQLite database file. Includes all photo metadata, albums, tags, faces, and settings.
-          Does not include thumbnails or original photos.
+          Download the SQLite database. Includes all metadata, albums, tags, faces, and settings.
         </p>
         <div class="action-row">
           <button class="btn-action" (click)="downloadBackup()">Download Backup</button>
         </div>
-      </div>
-
-      <!-- Inbox -->
-      <div class="setting-section">
-        <h3>Photo Ingestion</h3>
-        <p class="section-desc">
-          Drop photos into the inbox directory. They'll be hashed, deduplicated,
-          and moved into the NAS folder structure.
-        </p>
-        <div class="action-row">
-          <button class="btn-action" (click)="triggerIngest()" [disabled]="ingestRunning">
-            {{ ingestRunning ? 'Processing...' : 'Process Inbox' }}
-          </button>
-        </div>
-        @if (ingestResult) {
-          <div class="result-msg">
-            Imported {{ ingestResult.imported }}, duplicates {{ ingestResult.duplicates }}, errors {{ ingestResult.errors }}
-          </div>
-        }
       </div>
 
       </div>
