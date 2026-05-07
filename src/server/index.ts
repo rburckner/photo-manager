@@ -11,6 +11,7 @@ import { AlbumRepository } from '../db/repositories/album.repository.js';
 import { photoRoutes } from './routes/photos.js';
 import { albumRoutes } from './routes/albums.js';
 import { startDlnaServer } from './dlna.js';
+import { startInboxWatcher } from '../ingestion/index.js';
 
 const config = loadConfig();
 const log = initLogger({ logLevel: config.logLevel });
@@ -94,6 +95,9 @@ async function start(): Promise<void> {
 
   // Start DLNA server for TV discovery on local network
   startDlnaServer(photoRepo, albumRepo, config);
+
+  // Start inbox watcher for photo ingestion
+  startInboxWatcher(config, photoRepo);
 
   const shutdown = async (): Promise<void> => {
     log.info('Shutting down...');

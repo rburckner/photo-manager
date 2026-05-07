@@ -127,6 +127,30 @@ export class PhotoRepository {
     return { photos, total };
   }
 
+  removeFromIndex(id: number): void {
+    this.db.prepare('DELETE FROM album_photos WHERE photo_id = ?').run(id);
+    this.db.prepare('DELETE FROM photo_tags WHERE photo_id = ?').run(id);
+    this.db.prepare('DELETE FROM photos WHERE id = ?').run(id);
+  }
+
+  getDuplicates(): Array<{ file_hash: string; count: number; photos: Array<{ id: number; file_path: string; file_size: number; mime_type: string }> }> {
+    const hashes = this.db.prepare(`
+      SELECT file_hash, count(*) as count
+      FROM photos
+      GROUP BY file_hash
+      HAVING count > 1
+      ORDER BY count DESC
+      LIMIT 500
+    `).all() as Array<{ file_hash: string; count: number }>;
+
+    return hashes.map((h) => ({
+      ...h,
+      photos: this.db.prepare(
+        'SELECT id, file_path, file_size, mime_type FROM photos WHERE file_hash = ?',
+      ).all(h.file_hash) as Array<{ id: number; file_path: string; file_size: number; mime_type: string }>,
+    }));
+  }
+
   getStatsByYear(): Array<{ year: string; count: number }> {
     return this.db.prepare(`
       SELECT strftime('%Y', COALESCE(date_taken, date_modified)) as year, count(*) as count

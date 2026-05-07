@@ -159,6 +159,35 @@ export async function photoRoutes(
     return photoRepo.getFolders();
   });
 
+  // DELETE /api/photos/:id — remove from index only (NAS files untouched)
+  app.delete<{ Params: { id: string } }>('/api/photos/:id', async (request, reply) => {
+    const id = parseInt(request.params.id, 10);
+    const photo = photoRepo.findById(id);
+    if (!photo) {
+      return reply.code(404).send({ error: 'Photo not found' });
+    }
+    photoRepo.removeFromIndex(id);
+    return { ok: true, removed_path: photo.file_path };
+  });
+
+  // POST /api/ingest — manually trigger inbox processing
+  app.post('/api/ingest', async () => {
+    const { processInbox } = await import('../../ingestion/index.js');
+    const results = await processInbox(config.dropboxDir, config.mediaRoot, photoRepo);
+    return {
+      imported: results.filter((r) => r.action === 'imported').length,
+      duplicates: results.filter((r) => r.action === 'duplicate').length,
+      skipped: results.filter((r) => r.action === 'skipped').length,
+      errors: results.filter((r) => r.action === 'error').length,
+      results,
+    };
+  });
+
+  // GET /api/photos/duplicates — files with same hash in different paths
+  app.get('/api/photos/duplicates', async () => {
+    return photoRepo.getDuplicates();
+  });
+
   // POST /api/photos/bulk/favorite — bulk set favorite
   app.post<{ Body: { photo_ids: number[]; value: boolean } }>('/api/photos/bulk/favorite', async (request, reply) => {
     const { photo_ids, value } = request.body;

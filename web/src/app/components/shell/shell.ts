@@ -1,11 +1,12 @@
 import { Component } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { SelectionBarComponent } from '../selection-bar/selection-bar';
+import { ShortcutsComponent } from '../shortcuts/shortcuts';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, SelectionBarComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, SelectionBarComponent, ShortcutsComponent],
   template: `
     <div class="shell">
       <nav class="sidebar">
@@ -61,6 +62,7 @@ import { SelectionBarComponent } from '../selection-bar/selection-bar';
         <app-selection-bar />
         <router-outlet />
       </main>
+      <app-shortcuts />
     </div>
   `,
   styles: [`

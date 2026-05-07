@@ -106,6 +106,19 @@ export class ApiService {
     return this.http.get<SlideshowPhoto[]>(`${this.baseUrl}/photos/slideshow`, { params });
   }
 
+  // Duplicates & Index management
+  getDuplicates(): Observable<Array<{ file_hash: string; count: number; photos: Array<{ id: number; file_path: string; file_size: number; mime_type: string }> }>> {
+    return this.http.get<Array<{ file_hash: string; count: number; photos: Array<{ id: number; file_path: string; file_size: number; mime_type: string }> }>>(`${this.baseUrl}/photos/duplicates`);
+  }
+
+  removeFromIndex(id: number): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/photos/${id}`);
+  }
+
+  triggerIngest(): Observable<{ imported: number; duplicates: number; errors: number }> {
+    return this.http.post<{ imported: number; duplicates: number; errors: number }>(`${this.baseUrl}/ingest`, {});
+  }
+
   // Map & Search
   getMapPoints(limit: number = 5000): Observable<MapPoint[]> {
     return this.http.get<MapPoint[]>(`${this.baseUrl}/photos/map`, { params: { limit: limit.toString() } });

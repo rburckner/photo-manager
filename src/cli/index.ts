@@ -34,6 +34,33 @@ program
     log.info('Migrations complete');
   });
 
+// ── ingest command ──
+program
+  .command('ingest')
+  .description('Process files in the inbox directory')
+  .action(async () => {
+    const config = loadConfig();
+    initLogger({ logLevel: config.logLevel });
+
+    const db = getDb(config.dbPath);
+    runMigrations(db);
+
+    const photoRepo = new PhotoRepository(db);
+    const { processInbox } = await import('../ingestion/index.js');
+    const results = await processInbox(config.dropboxDir, config.mediaRoot, photoRepo);
+
+    const imported = results.filter((r) => r.action === 'imported').length;
+    const duplicates = results.filter((r) => r.action === 'duplicate').length;
+    const errors = results.filter((r) => r.action === 'error').length;
+
+    console.log(`\nIngest complete:`);
+    console.log(`  Imported:    ${imported}`);
+    console.log(`  Duplicates:  ${duplicates}`);
+    console.log(`  Errors:      ${errors}`);
+
+    closeDb();
+  });
+
 // ── stats command ──
 program
   .command('stats')
