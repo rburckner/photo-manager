@@ -258,11 +258,18 @@ export async function photoRoutes(
     return photoRepo.getDuplicates();
   });
 
-  // POST /api/embeddings/scan — generate visual embeddings for photos
+  // POST /api/embeddings/scan — start embedding scan (non-blocking)
   app.post<{ Body: { batch_size?: number } }>('/api/embeddings/scan', async (request) => {
     const batchSize = request.body?.batch_size ?? 50;
-    const { runEmbeddingScan } = await import('../../scanner/embeddings.js');
-    return await runEmbeddingScan(db, config, batchSize);
+    const { runEmbeddingScan, isEmbeddingScanRunning } = await import('../../scanner/embeddings.js');
+
+    if (isEmbeddingScanRunning()) {
+      return { ok: true, message: 'Already running' };
+    }
+
+    // Fire and forget — don't await, let it run in background
+    void runEmbeddingScan(db, config, batchSize);
+    return { ok: true, message: 'Embedding scan started' };
   });
 
   // GET /api/embeddings/status — check embedding progress

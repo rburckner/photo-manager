@@ -102,9 +102,9 @@ import type { CollectionStats } from '../../models/photo.model';
             <button class="btn-action btn-cancel" (click)="cancelEmbedding()">Cancel</button>
           }
         </div>
-        @if (embeddingResult) {
+        @if (!embeddingRunning && embeddingStatus && embeddingStatus.remaining === 0) {
           <div class="result-msg">
-            This session: scanned {{ embeddingResult.scanned }}, embedded {{ embeddingResult.embedded }} photos
+            All photos embedded
           </div>
         }
       </div>
@@ -406,14 +406,13 @@ export class SettingsComponent implements OnInit {
   private refreshEmbeddingStatus(): void {
     this.api.getEmbeddingStatus().subscribe({ next: (s) => {
       this.embeddingStatus = s;
-      if (s.running && !this.embeddingRunning) {
-        this.embeddingRunning = true;
-        // Poll while server is running
-        if (!this.embeddingPollTimer) {
-          this.embeddingPollTimer = setInterval(() => this.refreshEmbeddingStatus(), 3000);
-        }
+      this.embeddingRunning = s.running;
+
+      // Start polling if running, stop if not
+      if (s.running && !this.embeddingPollTimer) {
+        this.embeddingPollTimer = setInterval(() => this.refreshEmbeddingStatus(), 3000);
       }
-      if (!s.running && this.embeddingPollTimer && !this.embeddingRunning) {
+      if (!s.running && this.embeddingPollTimer) {
         clearInterval(this.embeddingPollTimer);
         this.embeddingPollTimer = null;
       }
@@ -421,46 +420,26 @@ export class SettingsComponent implements OnInit {
     }});
   }
 
-  private embeddingTotalScanned = 0;
-  private embeddingTotalEmbedded = 0;
-
   runEmbeddingScan(): void {
     this.embeddingRunning = true;
-    this.embeddingResult = null;
-    this.embeddingTotalScanned = 0;
-    this.embeddingTotalEmbedded = 0;
-    this.runEmbeddingBatch();
-  }
-
-  private runEmbeddingBatch(): void {
-    this.api.runEmbeddingScan(50).subscribe({
-      next: (r) => {
-        this.embeddingTotalScanned += r.scanned;
-        this.embeddingTotalEmbedded += r.embedded;
-        this.embeddingResult = { scanned: this.embeddingTotalScanned, embedded: this.embeddingTotalEmbedded };
-        this.cdr.detectChanges();
-
-        // Refresh overall status
-        this.api.getEmbeddingStatus().subscribe({ next: (s) => {
-          this.embeddingStatus = s;
-          this.cdr.detectChanges();
-        }});
-
-        // Auto-continue if there are more photos and not cancelled
-        if (r.scanned > 0 && r.embedded > 0 && this.embeddingRunning) {
-          setTimeout(() => this.runEmbeddingBatch(), 100);
-        } else {
-          this.embeddingRunning = false;
-          this.cdr.detectChanges();
-        }
-      },
-      error: () => { this.embeddingRunning = false; this.cdr.detectChanges(); },
-    });
+    this.api.runEmbeddingScan(50).subscribe();
+    // Start polling status
+    if (!this.embeddingPollTimer) {
+      this.embeddingPollTimer = setInterval(() => this.refreshEmbeddingStatus(), 3000);
+    }
   }
 
   cancelEmbedding(): void {
-    this.embeddingRunning = false;
-    this.api.cancelEmbeddingScan().subscribe();
+    this.api.cancelEmbeddingScan().subscribe({
+      next: () => {
+        this.embeddingRunning = false;
+        if (this.embeddingPollTimer) {
+          clearInterval(this.embeddingPollTimer);
+          this.embeddingPollTimer = null;
+        }
+        this.refreshEmbeddingStatus();
+      },
+    });
   }
 
   downloadBackup(): void {

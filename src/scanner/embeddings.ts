@@ -85,53 +85,72 @@ export async function runEmbeddingScan(
     return { scanned: 0, embedded: 0, cancelled: false };
   }
 
-  // Get photos without embeddings
-  const photoIds = (db.prepare(`
-    SELECT p.id FROM photos p
-    LEFT JOIN image_embeddings e ON e.photo_id = p.id
-    WHERE e.photo_id IS NULL AND p.is_video = 0
-    ORDER BY p.id DESC
-    LIMIT ?
-  `).all(batchSize) as Array<{ id: number }>).map((r) => r.id);
-
-  let scanned = 0;
-  let embedded = 0;
+  let totalScanned = 0;
+  let totalEmbedded = 0;
 
   const insertStmt = db.prepare(
     'INSERT OR REPLACE INTO image_embeddings (photo_id, embedding, model) VALUES (?, ?, ?)',
   );
 
-  for (const photoId of photoIds) {
-    if (embeddingCancelled) break;
+  // Loop through batches until done or cancelled
+  while (!embeddingCancelled) {
+    const photoIds = (db.prepare(`
+      SELECT p.id FROM photos p
+      LEFT JOIN image_embeddings e ON e.photo_id = p.id
+      WHERE e.photo_id IS NULL AND p.is_video = 0
+      ORDER BY p.id DESC
+      LIMIT ?
+    `).all(batchSize) as Array<{ id: number }>).map((r) => r.id);
 
-    const photo = db.prepare('SELECT thumbnail_path, file_path FROM photos WHERE id = ?')
-      .get(photoId) as { thumbnail_path: string | null; file_path: string } | undefined;
+    if (photoIds.length === 0) break;
 
-    if (!photo) { scanned++; continue; }
+    let batchEmbedded = 0;
 
-    let imagePath: string;
-    if (photo.thumbnail_path) {
-      imagePath = join(config.thumbnailDir, photo.thumbnail_path);
-    } else {
-      imagePath = join(config.mediaRoot, photo.file_path);
+    for (const photoId of photoIds) {
+      if (embeddingCancelled) break;
+
+      const photo = db.prepare('SELECT thumbnail_path, file_path FROM photos WHERE id = ?')
+        .get(photoId) as { thumbnail_path: string | null; file_path: string } | undefined;
+
+      if (!photo) { totalScanned++; continue; }
+
+      let imagePath: string;
+      if (photo.thumbnail_path) {
+        imagePath = join(config.thumbnailDir, photo.thumbnail_path);
+      } else {
+        imagePath = join(config.mediaRoot, photo.file_path);
+      }
+
+      if (!existsSync(imagePath)) { totalScanned++; continue; }
+
+      const embedding = await embedImage(imagePath);
+      if (embedding) {
+        insertStmt.run(photoId, Buffer.from(embedding.buffer), 'mobilenet');
+        batchEmbedded++;
+        totalEmbedded++;
+      }
+      totalScanned++;
+
+      // Yield every 10 photos so API stays responsive
+      if (totalScanned % 10 === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
     }
 
-    if (!existsSync(imagePath)) { scanned++; continue; }
+    log.info({ batchEmbedded, totalScanned, totalEmbedded }, 'Embedding batch complete');
 
-    const embedding = await embedImage(imagePath);
-    if (embedding) {
-      insertStmt.run(photoId, Buffer.from(embedding.buffer), 'mobilenet');
-      embedded++;
-    }
-    scanned++;
+    if (batchEmbedded === 0) break;
+
+    // Yield between batches
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
   embeddingRunning = false;
   const cancelled = embeddingCancelled;
   embeddingCancelled = false;
 
-  log.info({ scanned, embedded, cancelled }, 'Embedding scan complete');
-  return { scanned, embedded, cancelled };
+  log.info({ totalScanned, totalEmbedded, cancelled }, 'Embedding scan complete');
+  return { scanned: totalScanned, embedded: totalEmbedded, cancelled };
 }
 
 export function cancelEmbeddingScan(): boolean {
