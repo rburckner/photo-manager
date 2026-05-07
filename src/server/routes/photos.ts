@@ -258,25 +258,59 @@ export async function photoRoutes(
     return photoRepo.getDuplicates();
   });
 
-  // POST /api/photos/rescan-gps — re-extract GPS from photos missing coordinates
-  app.post<{ Body: { limit?: number } }>('/api/photos/rescan-gps', async (request) => {
-    const limit = request.body?.limit ?? 500;
-    const { extractExif } = await import('../../scanner/exif.js');
-    const missing = photoRepo.getPhotosWithoutGps(limit);
-    let found = 0;
+  // GPS re-scan state
+  let gpsScanRunning = false;
+  let gpsScanCancelled = false;
+  let gpsScanProgress = { checked: 0, found: 0, total: 0 };
 
-    for (const photo of missing) {
-      const filePath = join(config.mediaRoot, photo.file_path);
-      if (!existsSync(filePath)) continue;
+  // POST /api/photos/rescan-gps — start GPS re-scan (non-blocking)
+  app.post('/api/photos/rescan-gps', async () => {
+    if (gpsScanRunning) return { ok: true, message: 'Already running' };
 
-      const exif = await extractExif(filePath);
-      if (exif.gpsLat !== null && exif.gpsLng !== null) {
-        photoRepo.updateGps(photo.id, exif.gpsLat, exif.gpsLng);
-        found++;
+    gpsScanRunning = true;
+    gpsScanCancelled = false;
+    gpsScanProgress = { checked: 0, found: 0, total: 0 };
+
+    // Fire and forget
+    void (async () => {
+      const { extractExif } = await import('../../scanner/exif.js');
+      const allMissing = photoRepo.getPhotosWithoutGps(999999);
+      gpsScanProgress.total = allMissing.length;
+
+      for (const photo of allMissing) {
+        if (gpsScanCancelled) break;
+
+        const filePath = join(config.mediaRoot, photo.file_path);
+        if (existsSync(filePath)) {
+          const exif = await extractExif(filePath);
+          if (exif.gpsLat !== null && exif.gpsLng !== null) {
+            photoRepo.updateGps(photo.id, exif.gpsLat, exif.gpsLng);
+            gpsScanProgress.found++;
+          }
+        }
+        gpsScanProgress.checked++;
+
+        // Yield every 10 photos
+        if (gpsScanProgress.checked % 10 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
       }
-    }
 
-    return { checked: missing.length, gpsFound: found };
+      gpsScanRunning = false;
+    })();
+
+    return { ok: true, message: 'GPS scan started' };
+  });
+
+  // GET /api/photos/rescan-gps/status
+  app.get('/api/photos/rescan-gps/status', async () => {
+    return { running: gpsScanRunning, ...gpsScanProgress };
+  });
+
+  // POST /api/photos/rescan-gps/cancel
+  app.post('/api/photos/rescan-gps/cancel', async () => {
+    gpsScanCancelled = true;
+    return { ok: true };
   });
 
   // POST /api/embeddings/scan — start embedding scan (non-blocking)

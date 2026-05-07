@@ -81,8 +81,16 @@ export class ApiService {
     return this.http.get<Photo[]>(`${this.baseUrl}/photos/bad-dates`, { params: { limit: limit.toString() } });
   }
 
-  rescanGps(limit: number = 500): Observable<{ checked: number; gpsFound: number }> {
-    return this.http.post<{ checked: number; gpsFound: number }>(`${this.baseUrl}/photos/rescan-gps`, { limit });
+  rescanGps(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/rescan-gps`, {});
+  }
+
+  getGpsScanStatus(): Observable<{ running: boolean; checked: number; found: number; total: number }> {
+    return this.http.get<{ running: boolean; checked: number; found: number; total: number }>(`${this.baseUrl}/photos/rescan-gps/status`);
+  }
+
+  cancelGpsScan(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/rescan-gps/cancel`, {});
   }
 
   findVisuallySimilar(id: number, limit: number = 30): Observable<Array<Photo & { similarity: number }>> {

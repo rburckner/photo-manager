@@ -79,17 +79,20 @@ import type { CollectionStats } from '../../models/photo.model';
       <div class="setting-section">
         <h3>GPS Coordinates</h3>
         <p class="section-desc">
-          Re-extract GPS data from photos. Use this after fixing the GPS parser
-          to populate coordinates for photos that were previously missed.
+          Re-extract GPS data from photos missing coordinates.
         </p>
-        <div class="action-row">
-          <button class="btn-action" (click)="rescanGps()" [disabled]="gpsRunning">
-            {{ gpsRunning ? 'Scanning...' : 'Re-scan GPS Data' }}
-          </button>
-        </div>
-        @if (gpsResult) {
-          <div class="result-msg">
-            Checked {{ gpsResult.checked }}, found GPS in {{ gpsResult.gpsFound }} photos
+        @if (gpsStatus) {
+          <div class="status-row">
+            <span class="status-label">Progress:</span>
+            <span class="status-value">{{ gpsStatus.found.toLocaleString() }} GPS found, {{ gpsStatus.checked.toLocaleString() }} / {{ gpsStatus.total.toLocaleString() }} checked</span>
+          </div>
+          <div class="action-row" style="margin-top: 8px">
+            <button class="btn-action" (click)="rescanGps()" [disabled]="gpsRunning">
+              {{ gpsRunning ? 'Scanning...' : 'Re-scan GPS Data' }}
+            </button>
+            @if (gpsRunning) {
+              <button class="btn-action btn-cancel" (click)="cancelGpsScan()">Cancel</button>
+            }
           </div>
         }
       </div>
@@ -389,8 +392,9 @@ export class SettingsComponent implements OnInit {
   faceScanRunning = false;
   faceScanResult: { scanned: number; facesFound: number } | null = null;
   clusteringRunning = false;
-  gpsRunning = false;
-  gpsResult: { checked: number; gpsFound: number } | null = null;
+  gpsRunning = true; // assume running until status confirms
+  gpsStatus: { running: boolean; checked: number; found: number; total: number } | null = null;
+  private gpsPollTimer: ReturnType<typeof setInterval> | null = null;
   embeddingRunning = true; // assume running until status confirms otherwise
   embeddingStatus: { running: boolean; total: number; embedded: number; remaining: number } | null = null;
   thumbsRunning = false;
@@ -410,6 +414,7 @@ export class SettingsComponent implements OnInit {
     this.api.getCleanupLog().subscribe({ next: (items) => { this.cleanupItems = items; this.cdr.detectChanges(); } });
     this.settingsService.settings$.subscribe((s) => { this.settings = s; this.cdr.detectChanges(); });
     this.refreshEmbeddingStatus();
+    this.refreshGpsStatus();
     this.api.getTvStatus().subscribe({ next: (s) => { this.dlnaRunning = s.dlna.running; this.cdr.detectChanges(); } });
     this.api.getAlbums().subscribe({ next: (albums) => {
       const tv = albums.find((a: { name: string }) => a.name === 'TV Slideshow');
@@ -442,12 +447,36 @@ export class SettingsComponent implements OnInit {
     }});
   }
 
+  private refreshGpsStatus(): void {
+    this.api.getGpsScanStatus().subscribe({ next: (s) => {
+      this.gpsStatus = s;
+      this.gpsRunning = s.running;
+      if (s.running && !this.gpsPollTimer) {
+        this.gpsPollTimer = setInterval(() => this.refreshGpsStatus(), 3000);
+      }
+      if (!s.running && this.gpsPollTimer) {
+        clearInterval(this.gpsPollTimer);
+        this.gpsPollTimer = null;
+      }
+      this.cdr.detectChanges();
+    }});
+  }
+
   rescanGps(): void {
     this.gpsRunning = true;
-    this.gpsResult = null;
-    this.api.rescanGps(1000).subscribe({
-      next: (r) => { this.gpsResult = r; this.gpsRunning = false; this.cdr.detectChanges(); },
-      error: () => { this.gpsRunning = false; },
+    this.api.rescanGps().subscribe();
+    if (!this.gpsPollTimer) {
+      this.gpsPollTimer = setInterval(() => this.refreshGpsStatus(), 3000);
+    }
+  }
+
+  cancelGpsScan(): void {
+    this.api.cancelGpsScan().subscribe({
+      next: () => {
+        this.gpsRunning = false;
+        if (this.gpsPollTimer) { clearInterval(this.gpsPollTimer); this.gpsPollTimer = null; }
+        this.refreshGpsStatus();
+      },
     });
   }
 
