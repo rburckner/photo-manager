@@ -83,7 +83,18 @@ import type { CollectionStats } from '../../models/photo.model';
           lightbox will find photos that look visually alike — regardless of date or metadata.
           First run downloads the model (~16MB) from TensorFlow Hub.
         </p>
-        <div class="action-row">
+        @if (embeddingStatus) {
+          <div class="status-row">
+            <span class="status-label">Progress:</span>
+            <span class="status-value">{{ embeddingStatus.embedded.toLocaleString() }} / {{ embeddingStatus.total.toLocaleString() }} photos embedded ({{ embeddingStatus.remaining.toLocaleString() }} remaining)</span>
+          </div>
+          @if (embeddingStatus.running) {
+            <div class="status-row">
+              <span class="status-value" style="color: #8c8">Embedding scan is running...</span>
+            </div>
+          }
+        }
+        <div class="action-row" style="margin-top: 8px">
           <button class="btn-action" (click)="runEmbeddingScan()" [disabled]="embeddingRunning">
             {{ embeddingRunning ? 'Generating...' : 'Generate Embeddings' }}
           </button>
@@ -93,7 +104,7 @@ import type { CollectionStats } from '../../models/photo.model';
         </div>
         @if (embeddingResult) {
           <div class="result-msg">
-            Scanned {{ embeddingResult.scanned }}, embedded {{ embeddingResult.embedded }} photos
+            This session: scanned {{ embeddingResult.scanned }}, embedded {{ embeddingResult.embedded }} photos
           </div>
         }
       </div>
@@ -359,6 +370,7 @@ export class SettingsComponent implements OnInit {
   clusteringRunning = false;
   embeddingRunning = false;
   embeddingResult: { scanned: number; embedded: number } | null = null;
+  embeddingStatus: { running: boolean; total: number; embedded: number; remaining: number } | null = null;
   thumbsRunning = false;
   thumbsResult: { checked: number; generated: number } | null = null;
   ingestRunning = false;
@@ -375,6 +387,11 @@ export class SettingsComponent implements OnInit {
     this.api.getScanStatus().subscribe({ next: (s) => { this.scanStatus = s; this.cdr.detectChanges(); } });
     this.api.getCleanupLog().subscribe({ next: (items) => { this.cleanupItems = items; this.cdr.detectChanges(); } });
     this.settingsService.settings$.subscribe((s) => { this.settings = s; this.cdr.detectChanges(); });
+    this.api.getEmbeddingStatus().subscribe({ next: (s) => {
+      this.embeddingStatus = s;
+      if (s.running) this.embeddingRunning = true;
+      this.cdr.detectChanges();
+    }});
     this.api.getTvStatus().subscribe({ next: (s) => { this.dlnaRunning = s.dlna.running; this.cdr.detectChanges(); } });
     this.api.getAlbums().subscribe({ next: (albums) => {
       const tv = albums.find((a: { name: string }) => a.name === 'TV Slideshow');
@@ -406,6 +423,12 @@ export class SettingsComponent implements OnInit {
         this.embeddingTotalEmbedded += r.embedded;
         this.embeddingResult = { scanned: this.embeddingTotalScanned, embedded: this.embeddingTotalEmbedded };
         this.cdr.detectChanges();
+
+        // Refresh overall status
+        this.api.getEmbeddingStatus().subscribe({ next: (s) => {
+          this.embeddingStatus = s;
+          this.cdr.detectChanges();
+        }});
 
         // Auto-continue if there are more photos and not cancelled
         if (r.scanned > 0 && r.embedded > 0 && this.embeddingRunning) {

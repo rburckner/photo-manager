@@ -89,6 +89,10 @@ export class ApiService {
     return this.http.post<{ scanned: number; embedded: number }>(`${this.baseUrl}/embeddings/scan`, { batch_size: batchSize });
   }
 
+  getEmbeddingStatus(): Observable<{ running: boolean; total: number; embedded: number; remaining: number }> {
+    return this.http.get<{ running: boolean; total: number; embedded: number; remaining: number }>(`${this.baseUrl}/embeddings/status`);
+  }
+
   cancelEmbeddingScan(): Observable<{ ok: boolean }> {
     return this.http.post<{ ok: boolean }>(`${this.baseUrl}/embeddings/cancel`, {});
   }

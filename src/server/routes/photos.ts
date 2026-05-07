@@ -265,6 +265,14 @@ export async function photoRoutes(
     return await runEmbeddingScan(db, config, batchSize);
   });
 
+  // GET /api/embeddings/status — check embedding progress
+  app.get('/api/embeddings/status', async () => {
+    const { isEmbeddingScanRunning } = await import('../../scanner/embeddings.js');
+    const total = (db.prepare('SELECT count(*) as c FROM photos WHERE is_video = 0').get() as { c: number }).c;
+    const embedded = (db.prepare('SELECT count(*) as c FROM image_embeddings').get() as { c: number }).c;
+    return { running: isEmbeddingScanRunning(), total, embedded, remaining: total - embedded };
+  });
+
   // POST /api/embeddings/cancel — cancel embedding scan
   app.post('/api/embeddings/cancel', async () => {
     const { cancelEmbeddingScan } = await import('../../scanner/embeddings.js');
