@@ -64,6 +64,8 @@ interface Tag {
                   [class.selectable]="selection.isSelecting"
                   [class.selected]="selection.isSelected(photo.id)"
                   (click)="onPhotoClick(photo, $event)"
+                  (mouseenter)="photo.is_video === 1 ? onVideoHover($event, photo, true) : null"
+                  (mouseleave)="photo.is_video === 1 ? onVideoHover($event, photo, false) : null"
                 >
                   @if (selection.isSelecting) {
                     <div class="select-check">&#10003;</div>
@@ -155,7 +157,7 @@ interface Tag {
     }
 
     .photo-card {
-      aspect-ratio: 1; overflow: hidden; border-radius: 4px; cursor: pointer; background: #222;
+      position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 4px; cursor: pointer; background: #222;
       img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s; }
       &:hover img { transform: scale(1.05); }
     }
@@ -257,4 +259,27 @@ export class TagsComponent implements OnInit {
     if (i >= 0 && i < this.tagPhotos.length) this.selectedPhoto = this.tagPhotos[i]!;
   }
   onImageError(e: Event): void { (e.target as HTMLImageElement).style.display = 'none'; }
+
+  onVideoHover(event: Event, photo: { id: number }, enter: boolean): void {
+    const card = (event.target as HTMLElement).closest('.photo-card') as HTMLElement;
+    if (!card) return;
+
+    if (enter) {
+      const video = document.createElement('video');
+      video.src = `/api/photos/${photo.id}/video-preview`;
+      video.muted = true;
+      video.autoplay = true;
+      video.loop = true;
+      video.playsInline = true;
+      video.className = 'video-preview';
+      video.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2';
+      card.appendChild(video);
+    } else {
+      const video = card.querySelector('.video-preview');
+      if (video) {
+        (video as HTMLVideoElement).pause();
+        video.remove();
+      }
+    }
+  }
 }

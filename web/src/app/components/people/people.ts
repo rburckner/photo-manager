@@ -100,7 +100,12 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
 
           <div class="person-photos" (scroll)="onScroll($event)">
             @for (photo of personPhotos; track photo.id) {
-              <div class="photo-card" (click)="openPhoto(photo)">
+              <div
+                class="photo-card"
+                (click)="openPhoto(photo)"
+                (mouseenter)="photo.is_video === 1 ? onVideoHover($event, photo, true) : null"
+                (mouseleave)="photo.is_video === 1 ? onVideoHover($event, photo, false) : null"
+              >
                 <img
                   [src]="api.getThumbnailUrl(photo.id)"
                   [alt]="photo.file_name"
@@ -297,6 +302,7 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
     }
 
     .photo-card {
+      position: relative;
       aspect-ratio: 1;
       overflow: hidden;
       border-radius: 4px;
@@ -465,6 +471,29 @@ export class PeopleComponent implements OnInit {
         this.loadPeople();
       },
     });
+  }
+
+  onVideoHover(event: Event, photo: { id: number }, enter: boolean): void {
+    const card = (event.target as HTMLElement).closest('.photo-card') as HTMLElement;
+    if (!card) return;
+
+    if (enter) {
+      const video = document.createElement('video');
+      video.src = `/api/photos/${photo.id}/video-preview`;
+      video.muted = true;
+      video.autoplay = true;
+      video.loop = true;
+      video.playsInline = true;
+      video.className = 'video-preview';
+      video.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2';
+      card.appendChild(video);
+    } else {
+      const video = card.querySelector('.video-preview');
+      if (video) {
+        (video as HTMLVideoElement).pause();
+        video.remove();
+      }
+    }
   }
 
   openPhoto(photo: Photo): void { this.selectedPhoto = photo; }

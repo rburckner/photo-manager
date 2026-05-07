@@ -24,6 +24,8 @@ import type { Photo } from '../../models/photo.model';
             [class.selectable]="selection.isSelecting"
             [class.selected]="selection.isSelected(photo.id)"
             (click)="onPhotoClick(photo, $event)"
+            (mouseenter)="photo.is_video === 1 ? onVideoHover($event, photo, true) : null"
+            (mouseleave)="photo.is_video === 1 ? onVideoHover($event, photo, false) : null"
           >
             @if (selection.isSelecting) {
               <div class="select-check">&#10003;</div>
@@ -134,4 +136,27 @@ export class HiddenComponent implements OnInit, OnDestroy {
     if (i >= 0 && i < this.photos.length) this.selectedPhoto = this.photos[i]!;
   }
   onImageError(e: Event): void { (e.target as HTMLImageElement).style.display = 'none'; }
+
+  onVideoHover(event: Event, photo: { id: number }, enter: boolean): void {
+    const card = (event.target as HTMLElement).closest('.photo-card') as HTMLElement;
+    if (!card) return;
+
+    if (enter) {
+      const video = document.createElement('video');
+      video.src = `/api/photos/${photo.id}/video-preview`;
+      video.muted = true;
+      video.autoplay = true;
+      video.loop = true;
+      video.playsInline = true;
+      video.className = 'video-preview';
+      video.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2';
+      card.appendChild(video);
+    } else {
+      const video = card.querySelector('.video-preview');
+      if (video) {
+        (video as HTMLVideoElement).pause();
+        video.remove();
+      }
+    }
+  }
 }
