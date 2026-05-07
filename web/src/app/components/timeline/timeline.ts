@@ -464,7 +464,6 @@ export class TimelineComponent implements OnInit, OnDestroy {
   }
 
   loadMore(): void {
-    console.debug('[Timeline] loadMore called', { loading: this.loading, hasMore: this.hasMore, page: this.currentPage });
     if (this.loading || !this.hasMore) return;
 
     this.loading = true;
