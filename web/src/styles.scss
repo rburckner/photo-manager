@@ -40,6 +40,19 @@ html, body {
   box-sizing: content-box;
 }
 
+/* ── Loading skeleton animation ── */
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #222 25%, #2a2a2a 50%, #222 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
 /* ── Placeholder image for loading/missing thumbnails ── */
 .photo-card img[src=""],
 .photo-card img:not([src]) {

@@ -11,7 +11,10 @@ import { AlbumRepository } from '../db/repositories/album.repository.js';
 import { photoRoutes } from './routes/photos.js';
 import { albumRoutes } from './routes/albums.js';
 import { faceRoutes } from './routes/faces.js';
+import { tagRoutes } from './routes/tags.js';
+import { shareRoutes } from './routes/shares.js';
 import { FaceRepository } from '../db/repositories/face.repository.js';
+import { TagRepository } from '../db/repositories/tag.repository.js';
 import { startDlnaServer } from './dlna.js';
 import { startInboxWatcher } from '../ingestion/index.js';
 import { startCronReindex } from './cron.js';
@@ -75,7 +78,11 @@ async function start(): Promise<void> {
   await app.register(albumRoutes, { albumRepo });
 
   const faceRepo = new FaceRepository(db);
+  const tagRepo = new TagRepository(db);
+
   await app.register(faceRoutes, { faceRepo, photoRepo, config });
+  await app.register(tagRoutes, { tagRepo, photoRepo });
+  await app.register(shareRoutes, { db, photoRepo, albumRepo, config });
 
   // Serve Angular build if it exists (production mode)
   const webDistPath = join(import.meta.dirname, '../../web/dist/photo-manager/browser');

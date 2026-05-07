@@ -2,11 +2,12 @@ import { Component } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { SelectionBarComponent } from '../selection-bar/selection-bar';
 import { ShortcutsComponent } from '../shortcuts/shortcuts';
+import { ToastComponent } from '../toast/toast';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, SelectionBarComponent, ShortcutsComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, SelectionBarComponent, ShortcutsComponent, ToastComponent],
   template: `
     <div class="shell">
       <nav class="sidebar">
@@ -75,6 +76,7 @@ import { ShortcutsComponent } from '../shortcuts/shortcuts';
         <router-outlet />
       </main>
       <app-shortcuts />
+      <app-toast />
     </div>
   `,
   styles: [`
@@ -141,6 +143,45 @@ import { ShortcutsComponent } from '../shortcuts/shortcuts';
     .content {
       flex: 1;
       overflow-y: auto;
+    }
+
+    /* ── Mobile responsive ── */
+    @media (max-width: 768px) {
+      .shell {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #333;
+        flex-direction: row;
+        overflow-x: auto;
+      }
+
+      .logo {
+        padding: 10px 16px;
+        border-bottom: none;
+        border-right: 1px solid #333;
+        display: flex;
+        align-items: center;
+
+        h1 { font-size: 1rem; white-space: nowrap; }
+      }
+
+      .nav-links {
+        display: flex;
+        flex-direction: row;
+        padding: 4px;
+        gap: 2px;
+        overflow-x: auto;
+
+        li a {
+          padding: 8px 10px;
+          white-space: nowrap;
+          font-size: 0.8rem;
+        }
+      }
     }
   `],
 })

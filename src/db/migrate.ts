@@ -3,6 +3,7 @@ import { getLogger } from '../shared/logger.js';
 import * as m001 from './migrations/001_initial.js';
 import * as m002 from './migrations/002_cleanup_log.js';
 import * as m003 from './migrations/003_faces.js';
+import * as m004 from './migrations/004_shares.js';
 
 interface Migration {
   name: string;
@@ -13,6 +14,7 @@ const migrations: Migration[] = [
   m001,
   m002,
   m003,
+  m004,
 ];
 
 export function runMigrations(db: Database.Database): void {
