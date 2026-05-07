@@ -1,6 +1,7 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
+import { SettingsService } from '../../services/settings.service';
 import type { CollectionStats } from '../../models/photo.model';
 
 @Component({
@@ -243,6 +244,7 @@ export class SettingsComponent implements OnInit {
 
   constructor(
     private readonly api: ApiService,
+    private readonly settingsService: SettingsService,
     private readonly cdr: ChangeDetectorRef,
   ) {}
 
@@ -250,13 +252,12 @@ export class SettingsComponent implements OnInit {
     this.api.getStats().subscribe({ next: (s) => { this.stats = s; this.cdr.detectChanges(); } });
     this.api.getScanStatus().subscribe({ next: (s) => { this.scanStatus = s; this.cdr.detectChanges(); } });
     this.api.getCleanupLog().subscribe({ next: (items) => { this.cleanupItems = items; this.cdr.detectChanges(); } });
-    this.api.getSettings().subscribe({ next: (s) => { this.settings = s; this.cdr.detectChanges(); } });
+    this.settingsService.settings$.subscribe((s) => { this.settings = s; this.cdr.detectChanges(); });
   }
 
   toggleSetting(key: string, event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
-    this.settings[key] = checked ? 'true' : 'false';
-    this.api.updateSettings({ [key]: this.settings[key]! }).subscribe();
+    this.settingsService.set(key, checked ? 'true' : 'false');
   }
 
   runFaceScan(): void {

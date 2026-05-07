@@ -4,7 +4,7 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { SelectionBarComponent } from '../selection-bar/selection-bar';
 import { ShortcutsComponent } from '../shortcuts/shortcuts';
 import { ToastComponent } from '../toast/toast';
-import { ApiService } from '../../services/api.service';
+import { SettingsService } from '../../services/settings.service';
 
 @Component({
   selector: 'app-shell',
@@ -192,13 +192,11 @@ import { ApiService } from '../../services/api.service';
 export class ShellComponent implements OnInit {
   showFolders = true;
 
-  constructor(private readonly api: ApiService) {}
+  constructor(private readonly settingsService: SettingsService) {}
 
   ngOnInit(): void {
-    this.api.getSettings().subscribe({
-      next: (settings) => {
-        this.showFolders = settings['show_folders_nav'] !== 'false';
-      },
+    this.settingsService.settings$.subscribe((settings) => {
+      this.showFolders = settings['show_folders_nav'] !== 'false';
     });
   }
 }
