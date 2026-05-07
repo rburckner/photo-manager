@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
+import { ToastService } from '../../services/toast.service';
 import type { Photo, Album } from '../../models/photo.model';
 
 @Component({
@@ -143,6 +144,9 @@ import type { Photo, Album } from '../../models/photo.model';
         <a class="btn-download" [href]="api.getFileUrl(photo.id)" download>
           &#8615;
         </a>
+        <button class="btn-delete" (click)="deletePhoto()" title="Move to trash">
+          &#128465;
+        </button>
         <button class="btn-prev" (click)="prev.emit()">&lsaquo;</button>
         <button class="btn-next" (click)="next.emit()">&rsaquo;</button>
 
@@ -333,7 +337,7 @@ import type { Photo, Album } from '../../models/photo.model';
     }
 
     /* ── Buttons ── */
-    .btn-close, .btn-fav, .btn-info, .btn-album, .btn-download, .btn-prev, .btn-next {
+    .btn-close, .btn-fav, .btn-info, .btn-album, .btn-download, .btn-delete, .btn-prev, .btn-next {
       position: absolute;
       background: rgba(0, 0, 0, 0.5);
       border: none;
@@ -419,6 +423,18 @@ import type { Photo, Album } from '../../models/photo.model';
       z-index: 10;
       text-decoration: none;
       color: #fff;
+    }
+
+    .btn-delete {
+      top: 8px;
+      right: 316px;
+      width: 36px;
+      height: 36px;
+      font-size: 1.2rem;
+      z-index: 10;
+      color: #e88;
+
+      &:hover { background: rgba(255, 100, 100, 0.2); }
     }
 
     .album-picker {
@@ -609,6 +625,7 @@ export class LightboxComponent implements OnInit, OnDestroy {
 
   constructor(
     public readonly api: ApiService,
+    private readonly toast: ToastService,
     private readonly cdr: ChangeDetectorRef,
   ) {}
 
@@ -656,6 +673,29 @@ export class LightboxComponent implements OnInit, OnDestroy {
         this.photo.is_favorite = result.is_favorite ? 1 : 0;
         this.cdr.detectChanges();
       },
+    });
+  }
+
+  deletePhoto(): void {
+    const id = this.photo.id;
+    this.api.trashPhoto(id).subscribe({
+      next: (res) => {
+        if (!res.moved) {
+          this.toast.error('Could not move to trash');
+          return;
+        }
+        this.toast.withAction(
+          'Moved to trash',
+          'Undo',
+          () => {
+            this.api.restorePhoto(id).subscribe({
+              error: () => this.toast.error('Restore failed'),
+            });
+          },
+        );
+        this.next.emit();
+      },
+      error: () => this.toast.error('Delete failed'),
     });
   }
 

@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { SelectionService } from '../../services/selection.service';
 import { ApiService } from '../../services/api.service';
+import { ToastService } from '../../services/toast.service';
 import type { Album } from '../../models/photo.model';
 
 @Component({
@@ -56,6 +57,7 @@ import type { Album } from '../../models/photo.model';
           @if (activeAlbumId) {
             <button class="bar-btn btn-danger" (click)="removeFromAlbum()">Remove from Album</button>
           }
+          <button class="bar-btn btn-danger" (click)="bulkDelete()">&#128465; Delete</button>
         </div>
         @if (actionMessage) {
           <span class="action-msg">{{ actionMessage }}</span>
@@ -187,6 +189,7 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
     public readonly selection: SelectionService,
     private readonly router: Router,
     private readonly api: ApiService,
+    private readonly toast: ToastService,
     private readonly cdr: ChangeDetectorRef,
   ) {}
 
@@ -291,6 +294,29 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
         setTimeout(() => { this.actionMessage = ''; this.cdr.detectChanges(); }, 2000);
       },
+    });
+  }
+
+  bulkDelete(): void {
+    const ids = this.selection.ids;
+    if (ids.length === 0) return;
+    this.api.bulkTrash(ids).subscribe({
+      next: (res) => {
+        this.selection.exitSelectionMode();
+        this.selection.notifyRefresh();
+        const noun = res.moved === 1 ? 'item' : 'items';
+        this.toast.withAction(
+          `Moved ${res.moved} ${noun} to trash`,
+          'Undo',
+          () => {
+            this.api.bulkRestore(ids).subscribe({
+              next: () => this.selection.notifyRefresh(),
+              error: () => this.toast.error('Restore failed'),
+            });
+          },
+        );
+      },
+      error: () => this.toast.error('Delete failed'),
     });
   }
 }

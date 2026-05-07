@@ -91,13 +91,13 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
                 <div
                   class="photo-card"
                   [class.video]="photo.is_video === 1"
-                  [class.selectable]="selection.isSelecting"
-                  [class.selected]="selection.isSelected(photo.id)"
+                  [class.selectable]="selection.isSelectingSignal()"
+                  [class.selected]="selection.selectedIdsSignal().has(photo.id)"
                   (click)="onPhotoClick(photo, $event)"
                   (mouseenter)="photo.is_video === 1 ? onVideoHover($event, photo, true) : null"
                   (mouseleave)="photo.is_video === 1 ? onVideoHover($event, photo, false) : null"
                 >
-                  @if (selection.isSelecting) {
+                  @if (selection.isSelectingSignal()) {
                     <div class="select-check">&#10003;</div>
                   }
                   <img

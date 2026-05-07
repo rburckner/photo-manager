@@ -1,3 +1,5 @@
+import { unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 import { PhotoRepository } from '../db/repositories/photo.repository.js';
 import { ScanProgressRepository } from '../db/repositories/scan-progress.repository.js';
 import { FaceRepository } from '../db/repositories/face.repository.js';
@@ -6,6 +8,53 @@ import type { AppConfig } from '../shared/types.js';
 import { getLogger } from '../shared/logger.js';
 
 const DEFAULT_CRON_HOUR = 2; // 2 AM
+const TRASH_RETENTION_DAYS = parseInt(process.env['PM_TRASH_RETENTION_DAYS'] ?? '30', 10);
+
+/**
+ * Permanently delete photos that have been in trash longer than the retention window.
+ * Called at the start of each daily cron run.
+ */
+export async function runAutoPurge(
+  config: AppConfig,
+  photoRepo: PhotoRepository,
+): Promise<{ purged: number; errors: number }> {
+  const log = getLogger();
+  const expired = photoRepo.getExpiredTrash(TRASH_RETENTION_DAYS);
+  if (expired.length === 0) {
+    return { purged: 0, errors: 0 };
+  }
+
+  log.info({ count: expired.length, retentionDays: TRASH_RETENTION_DAYS }, 'Auto-purging expired trash');
+
+  let purged = 0;
+  let errors = 0;
+  for (const photo of expired) {
+    if (!photo.trash_path) continue;
+    const fileAbs = join(config.mediaRoot, photo.trash_path);
+    try {
+      await unlink(fileAbs);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      if (!error.includes('ENOENT')) {
+        log.warn({ photoId: photo.id, fileAbs, error }, 'Auto-purge file unlink failed');
+        errors++;
+      }
+    }
+    if (photo.thumbnail_path) {
+      const thumbAbs = join(config.thumbnailDir, photo.thumbnail_path);
+      try {
+        await unlink(thumbAbs);
+      } catch {
+        // Thumbnails are regenerable, ignore failures.
+      }
+    }
+    photoRepo.purgeRow(photo.id);
+    purged++;
+  }
+
+  log.info({ purged, errors }, 'Auto-purge complete');
+  return { purged, errors };
+}
 
 // ── Cron state (module-level for API access) ──
 let cronEnabled = true;
@@ -98,6 +147,13 @@ export function startCronReindex(
     log.info('Starting daily re-index');
 
     try {
+      // Auto-purge expired trash before re-indexing.
+      try {
+        await runAutoPurge(config, photoRepo);
+      } catch (purgeErr) {
+        log.warn({ error: purgeErr instanceof Error ? purgeErr.message : String(purgeErr) }, 'Auto-purge failed');
+      }
+
       const result = await runScan(
         {
           rootPath: config.mediaRoot,

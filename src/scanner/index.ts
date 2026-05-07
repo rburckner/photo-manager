@@ -116,7 +116,7 @@ export async function runScan(
  * Processes a single file: extracts metadata, generates thumbnail,
  * and returns a PhotoInsert ready for the database.
  */
-async function processFile(entry: FileEntry, config: ScanConfig): Promise<PhotoInsert> {
+export async function processFile(entry: FileEntry, config: ScanConfig): Promise<PhotoInsert> {
   // Run EXIF extraction and media info in parallel
   const [exif, mediaInfo] = await Promise.all([
     extractExif(entry.absolutePath),

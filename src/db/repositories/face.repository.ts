@@ -55,9 +55,11 @@ export class FaceRepository {
   }
 
   updatePersonPhotoCount(personId: number): void {
-    const count = (this.db.prepare(
-      'SELECT count(*) as c FROM faces WHERE person_id = ?',
-    ).get(personId) as { c: number }).c;
+    const count = (this.db.prepare(`
+      SELECT count(DISTINCT f.photo_id) as c FROM faces f
+      JOIN photos p ON p.id = f.photo_id
+      WHERE f.person_id = ? AND p.deleted_at IS NULL
+    `).get(personId) as { c: number }).c;
     this.db.prepare('UPDATE people SET photo_count = ? WHERE id = ?').run(count, personId);
   }
 
@@ -97,15 +99,21 @@ export class FaceRepository {
   }
 
   getFacesByPerson(personId: number, limit: number = 100, offset: number = 0): FaceRow[] {
-    return this.db.prepare(
-      'SELECT * FROM faces WHERE person_id = ? LIMIT ? OFFSET ?',
-    ).all(personId, limit, offset) as FaceRow[];
+    return this.db.prepare(`
+      SELECT f.* FROM faces f
+      JOIN photos p ON p.id = f.photo_id
+      WHERE f.person_id = ? AND p.deleted_at IS NULL
+      LIMIT ? OFFSET ?
+    `).all(personId, limit, offset) as FaceRow[];
   }
 
   getPhotoIdsByPerson(personId: number): number[] {
-    return (this.db.prepare(
-      'SELECT DISTINCT photo_id FROM faces WHERE person_id = ? ORDER BY photo_id DESC',
-    ).all(personId) as Array<{ photo_id: number }>).map((r) => r.photo_id);
+    return (this.db.prepare(`
+      SELECT DISTINCT f.photo_id FROM faces f
+      JOIN photos p ON p.id = f.photo_id
+      WHERE f.person_id = ? AND p.deleted_at IS NULL
+      ORDER BY f.photo_id DESC
+    `).all(personId) as Array<{ photo_id: number }>).map((r) => r.photo_id);
   }
 
   getAllEmbeddings(): Array<{ id: number; person_id: number | null; embedding: Buffer }> {
@@ -151,7 +159,7 @@ export class FaceRepository {
     return (this.db.prepare(`
       SELECT p.id FROM photos p
       LEFT JOIN face_scan_status fs ON fs.photo_id = p.id
-      WHERE fs.photo_id IS NULL AND p.is_video = 0
+      WHERE fs.photo_id IS NULL AND p.is_video = 0 AND p.deleted_at IS NULL
       ORDER BY p.date_taken DESC
       LIMIT ?
     `).all(limit) as Array<{ id: number }>).map((r) => r.id);
@@ -160,8 +168,11 @@ export class FaceRepository {
   // ── Representative face for a person (for the circle avatar) ──
 
   getRepresentativeFace(personId: number): (FaceRow & { photo_id: number }) | undefined {
-    return this.db.prepare(
-      'SELECT * FROM faces WHERE person_id = ? ORDER BY confidence DESC LIMIT 1',
-    ).get(personId) as (FaceRow & { photo_id: number }) | undefined;
+    return this.db.prepare(`
+      SELECT f.* FROM faces f
+      JOIN photos p ON p.id = f.photo_id
+      WHERE f.person_id = ? AND p.deleted_at IS NULL
+      ORDER BY f.confidence DESC LIMIT 1
+    `).get(personId) as (FaceRow & { photo_id: number }) | undefined;
   }
 }

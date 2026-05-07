@@ -25,7 +25,7 @@ export class PhotoRepository {
 
     this.findByPathStmt = db.prepare('SELECT * FROM photos WHERE file_path = ?');
     this.getDateModifiedStmt = db.prepare('SELECT date_modified FROM photos WHERE file_path = ?');
-    this.countStmt = db.prepare('SELECT count(*) as count FROM photos');
+    this.countStmt = db.prepare('SELECT count(*) as count FROM photos WHERE deleted_at IS NULL');
 
     this.insertMany = db.transaction((photos: PhotoInsert[]) => {
       for (const photo of photos) {
@@ -76,23 +76,23 @@ export class PhotoRepository {
 
     if (opts.folder) {
       const photos = this.db.prepare(
-        `SELECT * FROM photos WHERE folder_path = ? AND is_hidden = 0 ${orderBy} LIMIT ? OFFSET ?`,
+        `SELECT * FROM photos WHERE folder_path = ? AND is_hidden = 0 AND deleted_at IS NULL ${orderBy} LIMIT ? OFFSET ?`,
       ).all(opts.folder, opts.limit, opts.offset) as PhotoRow[];
       const total = (this.db.prepare(
-        'SELECT count(*) as count FROM photos WHERE folder_path = ? AND is_hidden = 0',
+        'SELECT count(*) as count FROM photos WHERE folder_path = ? AND is_hidden = 0 AND deleted_at IS NULL',
       ).get(opts.folder) as { count: number }).count;
       return { photos, total };
     }
 
     const photos = this.db.prepare(
-      `SELECT * FROM photos WHERE is_hidden = 0 ${orderBy} LIMIT ? OFFSET ?`,
+      `SELECT * FROM photos WHERE is_hidden = 0 AND deleted_at IS NULL ${orderBy} LIMIT ? OFFSET ?`,
     ).all(opts.limit, opts.offset) as PhotoRow[];
-    const total = (this.db.prepare('SELECT count(*) as count FROM photos WHERE is_hidden = 0').get() as { count: number }).count;
+    const total = (this.db.prepare('SELECT count(*) as count FROM photos WHERE is_hidden = 0 AND deleted_at IS NULL').get() as { count: number }).count;
     return { photos, total };
   }
 
   getTimeline(opts: { limit: number; offset: number; before?: string; after?: string }): PhotoRow[] {
-    const conditions: string[] = ['is_hidden = 0'];
+    const conditions: string[] = ['is_hidden = 0', 'deleted_at IS NULL'];
     const params: unknown[] = [];
 
     if (opts.before) {
@@ -115,7 +115,7 @@ export class PhotoRepository {
   getPhotosWithoutGps(limit: number): Array<{ id: number; file_path: string }> {
     return this.db.prepare(`
       SELECT id, file_path FROM photos
-      WHERE gps_lat IS NULL AND is_video = 0
+      WHERE gps_lat IS NULL AND is_video = 0 AND deleted_at IS NULL
       ORDER BY id DESC
       LIMIT ?
     `).all(limit) as Array<{ id: number; file_path: string }>;
@@ -128,7 +128,7 @@ export class PhotoRepository {
   getPhotosWithoutThumbnails(limit: number): Array<{ id: number; file_path: string; file_name: string; is_video: number }> {
     return this.db.prepare(`
       SELECT id, file_path, file_name, is_video FROM photos
-      WHERE thumbnail_path IS NULL
+      WHERE thumbnail_path IS NULL AND deleted_at IS NULL
       ORDER BY id DESC
       LIMIT ?
     `).all(limit) as Array<{ id: number; file_path: string; file_name: string; is_video: number }>;
@@ -148,7 +148,7 @@ export class PhotoRepository {
     const dayEnd = date.slice(0, 10) + 'T23:59:59';
     const sameDay = this.db.prepare(`
       SELECT * FROM photos
-      WHERE id != ? AND is_hidden = 0
+      WHERE id != ? AND is_hidden = 0 AND deleted_at IS NULL
         AND COALESCE(date_taken, date_modified) BETWEEN ? AND ?
       ORDER BY COALESCE(date_taken, date_modified)
       LIMIT 500
@@ -164,7 +164,7 @@ export class PhotoRepository {
       const personPhotoIds = this.db.prepare(`
         SELECT DISTINCT f.photo_id FROM faces f
         JOIN photos p ON p.id = f.photo_id
-        WHERE f.person_id = ? AND f.photo_id != ? AND p.is_hidden = 0
+        WHERE f.person_id = ? AND f.photo_id != ? AND p.is_hidden = 0 AND p.deleted_at IS NULL
         ORDER BY p.date_taken DESC
         LIMIT 200
       `).all(face.person_id, photoId) as Array<{ photo_id: number }>;
@@ -189,10 +189,10 @@ export class PhotoRepository {
 
   getHiddenPhotos(limit: number, offset: number): { photos: PhotoRow[]; total: number } {
     const photos = this.db.prepare(
-      'SELECT * FROM photos WHERE is_hidden = 1 ORDER BY COALESCE(date_taken, date_modified) DESC LIMIT ? OFFSET ?',
+      'SELECT * FROM photos WHERE is_hidden = 1 AND deleted_at IS NULL ORDER BY COALESCE(date_taken, date_modified) DESC LIMIT ? OFFSET ?',
     ).all(limit, offset) as PhotoRow[];
     const total = (this.db.prepare(
-      'SELECT count(*) as count FROM photos WHERE is_hidden = 1',
+      'SELECT count(*) as count FROM photos WHERE is_hidden = 1 AND deleted_at IS NULL',
     ).get() as { count: number }).count;
     return { photos, total };
   }
@@ -210,9 +210,9 @@ export class PhotoRepository {
   getPhotosWithBadDates(limit: number): PhotoRow[] {
     return this.db.prepare(`
       SELECT * FROM photos
-      WHERE date_taken IS NULL
+      WHERE deleted_at IS NULL AND (date_taken IS NULL
          OR date_taken < '1990-01-01'
-         OR date_taken > datetime('now', '+1 day')
+         OR date_taken > datetime('now', '+1 day'))
       ORDER BY date_modified DESC
       LIMIT ?
     `).all(limit) as PhotoRow[];
@@ -238,10 +238,10 @@ export class PhotoRepository {
 
   getFavorites(limit: number, offset: number): { photos: PhotoRow[]; total: number } {
     const photos = this.db.prepare(
-      'SELECT * FROM photos WHERE is_favorite = 1 AND is_hidden = 0 ORDER BY COALESCE(date_taken, date_modified) DESC LIMIT ? OFFSET ?',
+      'SELECT * FROM photos WHERE is_favorite = 1 AND is_hidden = 0 AND deleted_at IS NULL ORDER BY COALESCE(date_taken, date_modified) DESC LIMIT ? OFFSET ?',
     ).all(limit, offset) as PhotoRow[];
     const total = (this.db.prepare(
-      'SELECT count(*) as count FROM photos WHERE is_favorite = 1 AND is_hidden = 0',
+      'SELECT count(*) as count FROM photos WHERE is_favorite = 1 AND is_hidden = 0 AND deleted_at IS NULL',
     ).get() as { count: number }).count;
     return { photos, total };
   }
@@ -273,6 +273,7 @@ export class PhotoRepository {
     const hashes = this.db.prepare(`
       SELECT file_hash, count(*) as count
       FROM photos
+      WHERE deleted_at IS NULL
       GROUP BY file_hash
       HAVING count > 1
       ORDER BY count DESC
@@ -282,7 +283,7 @@ export class PhotoRepository {
     return hashes.map((h) => ({
       ...h,
       photos: this.db.prepare(
-        'SELECT id, file_path, file_size, mime_type FROM photos WHERE file_hash = ?',
+        'SELECT id, file_path, file_size, mime_type FROM photos WHERE file_hash = ? AND deleted_at IS NULL',
       ).all(h.file_hash) as Array<{ id: number; file_path: string; file_size: number; mime_type: string }>,
     }));
   }
@@ -291,7 +292,7 @@ export class PhotoRepository {
     return this.db.prepare(`
       SELECT strftime('%Y', COALESCE(date_taken, date_modified)) as year, count(*) as count
       FROM photos
-      WHERE COALESCE(date_taken, date_modified) > '1990-01-01'
+      WHERE COALESCE(date_taken, date_modified) > '1990-01-01' AND deleted_at IS NULL
       GROUP BY year
       ORDER BY year
     `).all() as Array<{ year: string; count: number }>;
@@ -301,7 +302,7 @@ export class PhotoRepository {
     const rows = this.db.prepare(`
       SELECT DISTINCT CAST(strftime('%Y', COALESCE(date_taken, date_modified)) AS INTEGER) as year
       FROM photos
-      WHERE COALESCE(date_taken, date_modified) > '1990-01-01'
+      WHERE COALESCE(date_taken, date_modified) > '1990-01-01' AND deleted_at IS NULL
       ORDER BY year
     `).all() as Array<{ year: number }>;
     return rows.map((r) => r.year);
@@ -311,6 +312,7 @@ export class PhotoRepository {
     return this.db.prepare(`
       SELECT COALESCE(camera_model, 'Unknown') as camera, count(*) as count
       FROM photos
+      WHERE deleted_at IS NULL
       GROUP BY camera
       ORDER BY count DESC
       LIMIT 20
@@ -321,6 +323,7 @@ export class PhotoRepository {
     return this.db.prepare(`
       SELECT mime_type, count(*) as count, sum(file_size) as total_size
       FROM photos
+      WHERE deleted_at IS NULL
       GROUP BY mime_type
       ORDER BY count DESC
     `).all() as Array<{ mime_type: string; count: number; total_size: number }>;
@@ -334,7 +337,7 @@ export class PhotoRepository {
         SELECT p.id, p.date_taken, p.gps_lat, p.gps_lng, p.folder_path, p.is_video
         FROM photos p
         JOIN album_photos ap ON ap.photo_id = p.id
-        WHERE ap.album_id = ? AND p.is_video = 0
+        WHERE ap.album_id = ? AND p.is_video = 0 AND p.deleted_at IS NULL
         ${order} LIMIT ?
       `).all(opts.albumId, opts.limit) as Array<{ id: number; date_taken: string | null; gps_lat: number | null; gps_lng: number | null; folder_path: string; is_video: number }>;
     }
@@ -342,7 +345,7 @@ export class PhotoRepository {
     return this.db.prepare(`
       SELECT id, date_taken, gps_lat, gps_lng, folder_path, is_video
       FROM photos
-      WHERE is_video = 0
+      WHERE is_video = 0 AND deleted_at IS NULL
       ${order} LIMIT ?
     `).all(opts.limit) as Array<{ id: number; date_taken: string | null; gps_lat: number | null; gps_lng: number | null; folder_path: string; is_video: number }>;
   }
@@ -351,7 +354,7 @@ export class PhotoRepository {
     return this.db.prepare(`
       SELECT id, gps_lat, gps_lng, date_taken, thumbnail_path, is_video
       FROM photos
-      WHERE gps_lat IS NOT NULL AND gps_lng IS NOT NULL
+      WHERE gps_lat IS NOT NULL AND gps_lng IS NOT NULL AND deleted_at IS NULL
       ORDER BY date_taken DESC
       LIMIT ?
     `).all(limit) as Array<{ id: number; gps_lat: number; gps_lng: number; date_taken: string | null; thumbnail_path: string | null; is_video: number }>;
@@ -361,14 +364,14 @@ export class PhotoRepository {
     const pattern = `%${query}%`;
     const photos = this.db.prepare(`
       SELECT * FROM photos
-      WHERE is_hidden = 0 AND (file_name LIKE ? OR folder_path LIKE ? OR camera_make LIKE ? OR camera_model LIKE ?)
+      WHERE is_hidden = 0 AND deleted_at IS NULL AND (file_name LIKE ? OR folder_path LIKE ? OR camera_make LIKE ? OR camera_model LIKE ?)
       ORDER BY COALESCE(date_taken, date_modified) DESC
       LIMIT ? OFFSET ?
     `).all(pattern, pattern, pattern, pattern, limit, offset) as PhotoRow[];
 
     const total = (this.db.prepare(`
       SELECT count(*) as count FROM photos
-      WHERE is_hidden = 0 AND (file_name LIKE ? OR folder_path LIKE ? OR camera_make LIKE ? OR camera_model LIKE ?)
+      WHERE is_hidden = 0 AND deleted_at IS NULL AND (file_name LIKE ? OR folder_path LIKE ? OR camera_make LIKE ? OR camera_model LIKE ?)
     `).get(pattern, pattern, pattern, pattern) as { count: number }).count;
 
     return { photos, total };
@@ -376,7 +379,7 @@ export class PhotoRepository {
 
   getFolders(): Array<{ folder_path: string; count: number }> {
     return this.db.prepare(
-      'SELECT folder_path, count(*) as count FROM photos GROUP BY folder_path ORDER BY folder_path',
+      'SELECT folder_path, count(*) as count FROM photos WHERE deleted_at IS NULL GROUP BY folder_path ORDER BY folder_path',
     ).all() as Array<{ folder_path: string; count: number }>;
   }
 
@@ -390,8 +393,85 @@ export class PhotoRepository {
         min(CASE WHEN COALESCE(date_taken, date_modified) > '1990-01-01' THEN COALESCE(date_taken, date_modified) END) as earliestDate,
         max(CASE WHEN COALESCE(date_taken, date_modified) <= datetime('now', '+1 day') THEN COALESCE(date_taken, date_modified) END) as latestDate
       FROM photos
-      WHERE is_hidden = 0
+      WHERE is_hidden = 0 AND deleted_at IS NULL
     `).get() as { total: number; images: number; videos: number; totalSize: number; earliestDate: string | null; latestDate: string | null };
+    return row;
+  }
+
+  // ── Trash methods ──
+
+  /**
+   * Soft-delete: marks a photo as trashed.
+   * The actual filesystem rename is the route's responsibility (so a failed rename can roll back the DB).
+   */
+  markTrashed(id: number, trashRelativePath: string): void {
+    const photo = this.findById(id);
+    if (!photo) return;
+    this.db.prepare(`
+      UPDATE photos
+      SET deleted_at = datetime('now'),
+          original_path = ?,
+          trash_path = ?,
+          file_path = ?
+      WHERE id = ?
+    `).run(photo.file_path, trashRelativePath, trashRelativePath, id);
+  }
+
+  /**
+   * Restore: clears the trashed state. Caller is responsible for the filesystem rename.
+   */
+  markRestored(id: number): void {
+    const photo = this.findById(id);
+    if (!photo?.original_path) return;
+    this.db.prepare(`
+      UPDATE photos
+      SET deleted_at = NULL,
+          trash_path = NULL,
+          original_path = NULL,
+          file_path = ?
+      WHERE id = ?
+    `).run(photo.original_path, id);
+  }
+
+  /**
+   * Permanent delete: removes the DB row and all references. Caller handles file unlink.
+   */
+  purgeRow(id: number): void {
+    this.db.prepare('DELETE FROM album_photos WHERE photo_id = ?').run(id);
+    this.db.prepare('DELETE FROM photo_tags WHERE photo_id = ?').run(id);
+    this.db.prepare('DELETE FROM photos WHERE id = ?').run(id);
+  }
+
+  getTrashed(opts: { limit: number; offset: number }): { photos: PhotoRow[]; total: number } {
+    const photos = this.db.prepare(
+      'SELECT * FROM photos WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT ? OFFSET ?',
+    ).all(opts.limit, opts.offset) as PhotoRow[];
+    const total = (this.db.prepare(
+      'SELECT count(*) as count FROM photos WHERE deleted_at IS NOT NULL',
+    ).get() as { count: number }).count;
+    return { photos, total };
+  }
+
+  getAllTrashed(): PhotoRow[] {
+    return this.db.prepare(
+      'SELECT * FROM photos WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC',
+    ).all() as PhotoRow[];
+  }
+
+  getExpiredTrash(olderThanDays: number): PhotoRow[] {
+    return this.db.prepare(`
+      SELECT * FROM photos
+      WHERE deleted_at IS NOT NULL
+        AND deleted_at < datetime('now', ?)
+    `).all(`-${olderThanDays} days`) as PhotoRow[];
+  }
+
+  getTrashStats(): { count: number; totalSize: number } {
+    const row = this.db.prepare(`
+      SELECT count(*) as count, COALESCE(sum(file_size), 0) as totalSize
+      FROM photos
+      WHERE deleted_at IS NOT NULL
+    `).get() as { count: number; totalSize: number };
     return row;
   }
 }

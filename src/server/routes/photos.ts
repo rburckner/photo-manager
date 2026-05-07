@@ -222,9 +222,10 @@ export async function photoRoutes(
   // POST /api/ingest — manually trigger inbox processing
   app.post('/api/ingest', async () => {
     const { processInbox } = await import('../../ingestion/index.js');
-    const results = await processInbox(config.dropboxDir, config.mediaRoot, photoRepo);
+    const results = await processInbox(config, photoRepo);
     return {
       imported: results.filter((r) => r.action === 'imported').length,
+      indexed: results.filter((r) => r.action === 'imported' && r.indexed).length,
       duplicates: results.filter((r) => r.action === 'duplicate').length,
       skipped: results.filter((r) => r.action === 'skipped').length,
       errors: results.filter((r) => r.action === 'error').length,

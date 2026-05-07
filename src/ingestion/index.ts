@@ -1,10 +1,11 @@
 import { watch } from 'node:fs';
 import { readdir, stat, unlink, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join, extname } from 'node:path';
+import { join, extname, relative, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { SUPPORTED_EXTENSIONS } from '../shared/constants.js';
 import { PhotoRepository } from '../db/repositories/photo.repository.js';
-import type { AppConfig } from '../shared/types.js';
+import { processFile } from '../scanner/index.js';
+import type { AppConfig, FileEntry, ScanConfig } from '../shared/types.js';
 import { getLogger } from '../shared/logger.js';
 
 export interface IngestResult {
@@ -13,6 +14,7 @@ export interface IngestResult {
   action: 'imported' | 'duplicate' | 'skipped' | 'error';
   destination?: string;
   error?: string;
+  indexed?: boolean;
 }
 
 /**
@@ -20,15 +22,28 @@ export interface IngestResult {
  * 1. Hash each file (SHA-256)
  * 2. Check if hash exists in DB (duplicate)
  * 3. Move to NAS structure: {mediaRoot}/inbox/{YYYY-MM-DD}/{hash}{ext}
- * 4. Return results for each file
+ * 4. Index the imported file (EXIF, thumbnail, DB row) so it appears in the UI immediately
+ * 5. Return results for each file
  */
 export async function processInbox(
-  inboxDir: string,
-  mediaRoot: string,
+  config: AppConfig,
   photoRepo: PhotoRepository,
 ): Promise<IngestResult[]> {
   const log = getLogger();
   const results: IngestResult[] = [];
+  const inboxDir = config.dropboxDir;
+  const mediaRoot = config.mediaRoot;
+
+  const scanConfig: ScanConfig = {
+    rootPath: mediaRoot,
+    mediaRoot,
+    thumbnailDir: config.thumbnailDir,
+    generateThumbnails: true,
+    concurrency: 1,
+    batchSize: 1,
+    force: false,
+    dryRun: false,
+  };
 
   let entries;
   try {
@@ -74,12 +89,37 @@ export async function processInbox(
       await writeFile(destPath, fileBuffer);
       await unlink(filePath);
 
-      log.info({ file: entry.name, hash, destination: destPath }, 'File ingested');
+      // Index the freshly-copied file so it shows up in the UI immediately,
+      // matching the schema produced by a normal scan.
+      const destStat = await stat(destPath);
+      const relativePath = relative(mediaRoot, destPath);
+      const folderPath = dirname(relativePath);
+      const fileEntry: FileEntry = {
+        absolutePath: destPath,
+        relativePath,
+        folderPath: folderPath === '.' ? '' : folderPath,
+        fileName: hash,
+        fileSize: destStat.size,
+        dateModified: destStat.mtime,
+      };
+
+      let indexed = false;
+      try {
+        const photoInsert = await processFile(fileEntry, scanConfig);
+        photoRepo.batchInsert([photoInsert]);
+        indexed = true;
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        log.warn({ file: entry.name, hash, destination: destPath, error }, 'File copied but indexing failed — will be picked up by next scan');
+      }
+
+      log.info({ file: entry.name, hash, destination: destPath, indexed }, 'File ingested');
       results.push({
         file: entry.name,
         hash,
         action: 'imported',
         destination: `inbox/${date}/${hash}${ext}`,
+        indexed,
       });
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
@@ -112,7 +152,7 @@ export function startInboxWatcher(
       // Debounce — wait 2s after last change before processing
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        void processInbox(inboxDir, config.mediaRoot, photoRepo).then((results) => {
+        void processInbox(config, photoRepo).then((results) => {
           const imported = results.filter((r) => r.action === 'imported').length;
           const duplicates = results.filter((r) => r.action === 'duplicate').length;
           if (imported > 0 || duplicates > 0) {
@@ -129,7 +169,7 @@ export function startInboxWatcher(
 
   // Periodic poll as fallback (fs.watch can miss events on some filesystems)
   setInterval(() => {
-    void processInbox(inboxDir, config.mediaRoot, photoRepo).then((results) => {
+    void processInbox(config, photoRepo).then((results) => {
       const imported = results.filter((r) => r.action === 'imported').length;
       const duplicates = results.filter((r) => r.action === 'duplicate').length;
       if (imported > 0 || duplicates > 0) {

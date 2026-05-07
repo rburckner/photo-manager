@@ -17,13 +17,13 @@ import type { Photo } from '../../models/photo.model';
         @for (photo of photos; track photo.id) {
           <div
             class="photo-card"
-            [class.selectable]="selection.isSelecting"
-            [class.selected]="selection.isSelected(photo.id)"
+            [class.selectable]="selection.isSelectingSignal()"
+            [class.selected]="selection.selectedIdsSignal().has(photo.id)"
             (click)="onPhotoClick(photo, $event)"
             (mouseenter)="photo.is_video === 1 ? onVideoHover($event, photo, true) : null"
             (mouseleave)="photo.is_video === 1 ? onVideoHover($event, photo, false) : null"
           >
-            @if (selection.isSelecting) {
+            @if (selection.isSelectingSignal()) {
               <div class="select-check">&#10003;</div>
             }
             <img [src]="api.getThumbnailUrl(photo.id)" [alt]="photo.file_name" loading="lazy" (error)="onImageError($event)" />

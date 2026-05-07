@@ -18,10 +18,12 @@ import { FaceRepository } from '../db/repositories/face.repository.js';
 import { TagRepository } from '../db/repositories/tag.repository.js';
 import { authRoutes, createAuthMiddleware } from './routes/auth.js';
 import { notificationRoutes } from './routes/notifications.js';
+import { trashRoutes } from './routes/trash.js';
 import { startDlnaServer } from './dlna.js';
 import { startInboxWatcher } from '../ingestion/index.js';
 import { startCronReindex } from './cron.js';
 import { ScanProgressRepository } from '../db/repositories/scan-progress.repository.js';
+import { isPrivateIp } from './network-guard.js';
 
 const config = loadConfig();
 const log = initLogger({ logLevel: config.logLevel });
@@ -33,18 +35,6 @@ await app.register(fastifyMultipart, { limits: { fileSize: 500 * 1024 * 1024 } }
 
 // Local network guard — reject non-private IPs unless PM_ALLOW_REMOTE=true
 const allowRemote = process.env['PM_ALLOW_REMOTE'] === 'true';
-
-function isPrivateIp(ip: string): boolean {
-  const addr = ip.replace(/^::ffff:/, ''); // Normalize IPv4-mapped IPv6
-  if (addr === '127.0.0.1' || addr === '::1' || addr === 'localhost') return true;
-  if (addr.startsWith('10.')) return true;
-  if (addr.startsWith('192.168.')) return true;
-  if (addr.startsWith('172.')) {
-    const second = parseInt(addr.split('.')[1] ?? '0', 10);
-    if (second >= 16 && second <= 31) return true;
-  }
-  return false;
-}
 
 app.addHook('onRequest', async (request, reply) => {
   // Network access control
@@ -99,6 +89,7 @@ async function start(): Promise<void> {
   await app.register(shareRoutes, { db, photoRepo, albumRepo, config });
   await app.register(authRoutes, { db });
   await app.register(notificationRoutes, { db });
+  await app.register(trashRoutes, { photoRepo, config });
 
   // Optional auth middleware (enabled via Settings → auth_required=true)
   const authMiddleware = createAuthMiddleware(db);

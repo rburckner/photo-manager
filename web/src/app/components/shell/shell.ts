@@ -82,6 +82,12 @@ import { SettingsService } from '../../services/settings.service';
             </a>
           </li>
           <li>
+            <a routerLink="/trash" routerLinkActive="active">
+              <span class="icon">&#128465;</span>
+              Trash
+            </a>
+          </li>
+          <li>
             <a routerLink="/help" routerLinkActive="active">
               <span class="icon">&#10067;</span>
               Help

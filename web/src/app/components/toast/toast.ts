@@ -10,8 +10,11 @@ import { ToastService, Toast } from '../../services/toast.service';
   template: `
     <div class="toast-container">
       @for (toast of toasts; track toast.id) {
-        <div class="toast" [class]="'toast-' + toast.type" (click)="dismiss(toast.id)">
-          {{ toast.message }}
+        <div class="toast" [class]="'toast-' + toast.type">
+          <span class="toast-msg" (click)="dismiss(toast.id)">{{ toast.message }}</span>
+          @if (toast.action) {
+            <button class="toast-action" (click)="runAction(toast)">{{ toast.action.label }}</button>
+          }
         </div>
       }
     </div>
@@ -32,9 +35,29 @@ import { ToastService, Toast } from '../../services/toast.service';
       padding: 10px 16px;
       border-radius: 8px;
       font-size: 0.85rem;
-      cursor: pointer;
       animation: slideIn 0.2s ease;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .toast-msg {
+      flex: 1;
+      cursor: pointer;
+    }
+
+    .toast-action {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: inherit;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+
+      &:hover { background: rgba(255,255,255,0.25); }
     }
 
     @keyframes slideIn {
@@ -69,5 +92,10 @@ export class ToastComponent implements OnInit, OnDestroy {
 
   dismiss(id: number): void {
     this.toastService.dismiss(id);
+  }
+
+  runAction(toast: Toast): void {
+    toast.action?.handler();
+    this.toastService.dismiss(toast.id);
   }
 }

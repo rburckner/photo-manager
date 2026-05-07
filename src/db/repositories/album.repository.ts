@@ -24,10 +24,11 @@ export class AlbumRepository {
     return this.db.prepare(`
       SELECT
         a.*,
-        count(ap.photo_id) as photo_count,
-        cp.thumbnail_path as cover_thumbnail_path
+        count(CASE WHEN ap_p.deleted_at IS NULL THEN ap.photo_id END) as photo_count,
+        CASE WHEN cp.deleted_at IS NULL THEN cp.thumbnail_path END as cover_thumbnail_path
       FROM albums a
       LEFT JOIN album_photos ap ON ap.album_id = a.id
+      LEFT JOIN photos ap_p ON ap_p.id = ap.photo_id
       LEFT JOIN photos cp ON cp.id = a.cover_photo_id
       GROUP BY a.id
       ORDER BY a.updated_at DESC
@@ -80,14 +81,16 @@ export class AlbumRepository {
     const photos = this.db.prepare(`
       SELECT p.* FROM photos p
       JOIN album_photos ap ON ap.photo_id = p.id
-      WHERE ap.album_id = ?
+      WHERE ap.album_id = ? AND p.deleted_at IS NULL
       ORDER BY ap.sort_order, ap.added_at DESC
       LIMIT ? OFFSET ?
     `).all(albumId, limit, offset) as PhotoRow[];
 
-    const total = (this.db.prepare(
-      'SELECT count(*) as count FROM album_photos WHERE album_id = ?',
-    ).get(albumId) as { count: number }).count;
+    const total = (this.db.prepare(`
+      SELECT count(*) as count FROM album_photos ap
+      JOIN photos p ON p.id = ap.photo_id
+      WHERE ap.album_id = ? AND p.deleted_at IS NULL
+    `).get(albumId) as { count: number }).count;
 
     return { photos, total };
   }

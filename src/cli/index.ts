@@ -55,14 +55,15 @@ program
 
     const photoRepo = new PhotoRepository(db);
     const { processInbox } = await import('../ingestion/index.js');
-    const results = await processInbox(config.dropboxDir, config.mediaRoot, photoRepo);
+    const results = await processInbox(config, photoRepo);
 
     const imported = results.filter((r) => r.action === 'imported').length;
+    const indexed = results.filter((r) => r.action === 'imported' && r.indexed).length;
     const duplicates = results.filter((r) => r.action === 'duplicate').length;
     const errors = results.filter((r) => r.action === 'error').length;
 
     console.log(`\nIngest complete:`);
-    console.log(`  Imported:    ${imported}`);
+    console.log(`  Imported:    ${imported} (${indexed} indexed)`);
     console.log(`  Duplicates:  ${duplicates}`);
     console.log(`  Errors:      ${errors}`);
 

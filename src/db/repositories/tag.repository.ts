@@ -11,9 +11,10 @@ export class TagRepository {
 
   list(): Array<TagRow & { photo_count: number }> {
     return this.db.prepare(`
-      SELECT t.*, count(pt.photo_id) as photo_count
+      SELECT t.*, count(CASE WHEN p.deleted_at IS NULL THEN pt.photo_id END) as photo_count
       FROM tags t
       LEFT JOIN photo_tags pt ON pt.tag_id = t.id
+      LEFT JOIN photos p ON p.id = pt.photo_id
       GROUP BY t.id
       ORDER BY t.name
     `).all() as Array<TagRow & { photo_count: number }>;
@@ -69,12 +70,17 @@ export class TagRepository {
 
   getPhotosByTag(tagId: number, limit: number, offset: number): { photoIds: number[]; total: number } {
     const photoIds = (this.db.prepare(`
-      SELECT photo_id FROM photo_tags WHERE tag_id = ? ORDER BY photo_id DESC LIMIT ? OFFSET ?
+      SELECT pt.photo_id FROM photo_tags pt
+      JOIN photos p ON p.id = pt.photo_id
+      WHERE pt.tag_id = ? AND p.deleted_at IS NULL
+      ORDER BY pt.photo_id DESC LIMIT ? OFFSET ?
     `).all(tagId, limit, offset) as Array<{ photo_id: number }>).map((r) => r.photo_id);
 
-    const total = (this.db.prepare(
-      'SELECT count(*) as count FROM photo_tags WHERE tag_id = ?',
-    ).get(tagId) as { count: number }).count;
+    const total = (this.db.prepare(`
+      SELECT count(*) as count FROM photo_tags pt
+      JOIN photos p ON p.id = pt.photo_id
+      WHERE pt.tag_id = ? AND p.deleted_at IS NULL
+    `).get(tagId) as { count: number }).count;
 
     return { photoIds, total };
   }

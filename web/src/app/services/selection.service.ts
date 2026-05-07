@@ -1,9 +1,16 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal, computed } from '@angular/core';
 import { BehaviorSubject, Subject } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class SelectionService {
-  private readonly selectedIds = new Set<number>();
+  // ── Signal-based state (preferred for templates) ──
+  private readonly _selectedIds = signal<ReadonlySet<number>>(new Set());
+  readonly selectedIdsSignal = this._selectedIds.asReadonly();
+  readonly isSelectingSignal = computed(() => this._selectedIds().size > 0 || this._modeForced());
+  private readonly _modeForced = signal<boolean>(false);
+  readonly selectionCountSignal = computed(() => this._selectedIds().size);
+
+  // ── Legacy Observable mirrors (for code paths not yet migrated) ──
   private readonly selectionModeSubject = new BehaviorSubject<boolean>(false);
   private readonly selectionCountSubject = new BehaviorSubject<number>(0);
 
@@ -19,61 +26,60 @@ export class SelectionService {
   }
 
   get isSelecting(): boolean {
-    return this.selectionModeSubject.value;
+    return this.isSelectingSignal();
   }
 
   get count(): number {
-    return this.selectedIds.size;
+    return this._selectedIds().size;
   }
 
   get ids(): number[] {
-    return [...this.selectedIds];
+    return [...this._selectedIds()];
   }
 
   enterSelectionMode(): void {
+    this._modeForced.set(true);
     this.selectionModeSubject.next(true);
   }
 
   exitSelectionMode(): void {
-    this.selectedIds.clear();
+    this._selectedIds.set(new Set());
+    this._modeForced.set(false);
     this.selectionModeSubject.next(false);
     this.selectionCountSubject.next(0);
   }
 
   toggle(id: number): void {
-    if (this.selectedIds.has(id)) {
-      this.selectedIds.delete(id);
+    const next = new Set(this._selectedIds());
+    if (next.has(id)) {
+      next.delete(id);
     } else {
-      this.selectedIds.add(id);
+      next.add(id);
     }
-    this.selectionCountSubject.next(this.selectedIds.size);
-
-    // Auto-enter selection mode on first select
-    if (!this.selectionModeSubject.value && this.selectedIds.size > 0) {
-      this.selectionModeSubject.next(true);
-    }
-    // Auto-exit if nothing selected
-    if (this.selectedIds.size === 0) {
+    this._selectedIds.set(next);
+    this.selectionCountSubject.next(next.size);
+    if (next.size > 0) {
+      if (!this.selectionModeSubject.value) this.selectionModeSubject.next(true);
+    } else {
+      this._modeForced.set(false);
       this.selectionModeSubject.next(false);
     }
   }
 
   isSelected(id: number): boolean {
-    return this.selectedIds.has(id);
+    return this._selectedIds().has(id);
   }
 
   selectAll(ids: number[]): void {
-    for (const id of ids) {
-      this.selectedIds.add(id);
-    }
-    this.selectionCountSubject.next(this.selectedIds.size);
-    if (!this.selectionModeSubject.value) {
-      this.selectionModeSubject.next(true);
-    }
+    const next = new Set(this._selectedIds());
+    for (const id of ids) next.add(id);
+    this._selectedIds.set(next);
+    this.selectionCountSubject.next(next.size);
+    if (!this.selectionModeSubject.value) this.selectionModeSubject.next(true);
   }
 
   clear(): void {
-    this.selectedIds.clear();
+    this._selectedIds.set(new Set());
     this.selectionCountSubject.next(0);
   }
 }

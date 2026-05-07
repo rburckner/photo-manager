@@ -143,6 +143,44 @@ export class ApiService {
     return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/photos/favorites`, { params });
   }
 
+  // Trash
+  bulkTrash(ids: number[]): Observable<{ moved: number; errors: Array<{ id: number; error: string }> }> {
+    return this.http.post<{ moved: number; errors: Array<{ id: number; error: string }> }>(`${this.baseUrl}/photos/trash`, { ids });
+  }
+
+  bulkRestore(ids: number[]): Observable<{ restored: number; errors: Array<{ id: number; error: string }> }> {
+    return this.http.post<{ restored: number; errors: Array<{ id: number; error: string }> }>(`${this.baseUrl}/photos/restore`, { ids });
+  }
+
+  trashPhoto(id: number): Observable<{ ok: boolean; moved: boolean }> {
+    return this.http.post<{ ok: boolean; moved: boolean }>(`${this.baseUrl}/photos/${id}/trash`, {});
+  }
+
+  restorePhoto(id: number): Observable<{ ok: boolean; restored: boolean }> {
+    return this.http.post<{ ok: boolean; restored: boolean }>(`${this.baseUrl}/photos/${id}/restore`, {});
+  }
+
+  purgePhoto(id: number): Observable<{ ok: boolean; purged: boolean }> {
+    return this.http.delete<{ ok: boolean; purged: boolean }>(`${this.baseUrl}/photos/${id}/forever`);
+  }
+
+  getTrash(page: number = 1, limit: number = 50): Observable<PaginatedResponse<Photo>> {
+    const params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
+    return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/trash`, { params });
+  }
+
+  getTrashStats(): Observable<{ count: number; totalSize: number }> {
+    return this.http.get<{ count: number; totalSize: number }>(`${this.baseUrl}/trash/stats`);
+  }
+
+  emptyTrash(): Observable<{ purged: number }> {
+    return this.http.post<{ purged: number }>(`${this.baseUrl}/trash/empty`, {});
+  }
+
+  restoreAllTrash(): Observable<{ restored: number; errors: Array<{ id: number; error: string }> }> {
+    return this.http.post<{ restored: number; errors: Array<{ id: number; error: string }> }>(`${this.baseUrl}/trash/restore-all`, {});
+  }
+
   // Stats
   getStatsByYear(): Observable<Array<{ year: string; count: number }>> {
     return this.http.get<Array<{ year: string; count: number }>>(`${this.baseUrl}/stats/years`);

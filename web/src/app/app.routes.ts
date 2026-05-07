@@ -71,6 +71,10 @@ export const routes: Routes = [
         path: 'duplicates',
         loadComponent: () => import('./components/duplicates/duplicates').then((m) => m.DuplicatesComponent),
       },
+      {
+        path: 'trash',
+        loadComponent: () => import('./components/trash/trash').then((m) => m.TrashComponent),
+      },
     ],
   },
 ];

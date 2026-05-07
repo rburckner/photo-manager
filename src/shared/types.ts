@@ -24,6 +24,9 @@ export interface PhotoRow {
   folder_path: string;
   scanned_at: string;
   created_at: string;
+  deleted_at: string | null;
+  trash_path: string | null;
+  original_path: string | null;
 }
 
 export interface PhotoInsert {
