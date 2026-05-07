@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { SelectionService } from '../../services/selection.service';
+import { FilterService } from '../../services/filter.service';
 import { LightboxComponent } from '../lightbox/lightbox';
 import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.model';
 
@@ -323,16 +324,24 @@ export class TimelineComponent implements OnInit, OnDestroy {
     private readonly api: ApiService,
     private readonly cdr: ChangeDetectorRef,
     public readonly selection: SelectionService,
+    private readonly filterService: FilterService,
   ) {}
 
   ngOnInit(): void {
+    // Restore saved filters
+    const saved = this.filterService.current;
+    if (saved.fromDate) this.fromDate = saved.fromDate;
+    if (saved.toDate) this.toDate = saved.toDate;
+    if (saved.activeYear) this.activeYear = saved.activeYear;
+
     // Fetch distinct years from DB (filtered, no bogus dates)
     this.api.getDistinctYears().subscribe({
       next: (years) => {
         this.availableYears = [...years].reverse(); // newest first
         if (years.length > 0) {
           this.minDate = `${years[0]}-01`;
-          this.fromDate = this.minDate;
+          // Only set fromDate if no saved filter
+          if (!this.fromDate) this.fromDate = this.minDate;
         }
       },
     });
@@ -351,6 +360,7 @@ export class TimelineComponent implements OnInit, OnDestroy {
     this.fromDate = input.value;
     this.activeYear = null;
     if (!this.validateDateRange()) return;
+    this.filterService.setDateRange(this.fromDate, this.toDate);
     this.resetAndReload();
   }
 
@@ -359,6 +369,7 @@ export class TimelineComponent implements OnInit, OnDestroy {
     this.toDate = input.value;
     this.activeYear = null;
     if (!this.validateDateRange()) return;
+    this.filterService.setDateRange(this.fromDate, this.toDate);
     this.resetAndReload();
   }
 
@@ -375,6 +386,7 @@ export class TimelineComponent implements OnInit, OnDestroy {
     this.activeYear = year;
     this.fromDate = `${year}-01`;
     this.toDate = `${year}-12`;
+    this.filterService.setYear(year);
     this.resetAndReload();
   }
 
@@ -382,6 +394,7 @@ export class TimelineComponent implements OnInit, OnDestroy {
     this.activeYear = null;
     this.fromDate = this.minDate;
     this.toDate = this.maxDate;
+    this.filterService.setYear(null);
     this.resetAndReload();
   }
 
