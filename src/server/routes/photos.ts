@@ -232,25 +232,59 @@ export async function photoRoutes(
     };
   });
 
-  // POST /api/photos/generate-thumbnails — backfill missing thumbnails
-  app.post<{ Body: { limit?: number } }>('/api/photos/generate-thumbnails', async (request) => {
-    const limit = request.body?.limit ?? 100;
-    const { generateThumbnail } = await import('../../scanner/thumbnails.js');
-    const missing = photoRepo.getPhotosWithoutThumbnails(limit);
-    let generated = 0;
+  // Thumbnail generation state
+  let thumbScanRunning = false;
+  let thumbScanCancelled = false;
+  let thumbScanProgress = { checked: 0, generated: 0, total: 0 };
 
-    for (const photo of missing) {
-      const filePath = join(config.mediaRoot, photo.file_path);
-      const thumbPath = await generateThumbnail(filePath, photo.file_name, photo.is_video === 1, {
-        size: 400, quality: 80, outputDir: config.thumbnailDir,
-      });
-      if (thumbPath) {
-        photoRepo.setThumbnailPath(photo.id, thumbPath);
-        generated++;
+  // POST /api/photos/generate-thumbnails — start thumbnail backfill (non-blocking)
+  app.post('/api/photos/generate-thumbnails', async () => {
+    if (thumbScanRunning) return { ok: true, message: 'Already running' };
+
+    thumbScanRunning = true;
+    thumbScanCancelled = false;
+    thumbScanProgress = { checked: 0, generated: 0, total: 0 };
+
+    void (async () => {
+      const { generateThumbnail } = await import('../../scanner/thumbnails.js');
+      const allMissing = photoRepo.getPhotosWithoutThumbnails(999999);
+      thumbScanProgress.total = allMissing.length;
+
+      for (const photo of allMissing) {
+        if (thumbScanCancelled) break;
+
+        const filePath = join(config.mediaRoot, photo.file_path);
+        if (existsSync(filePath)) {
+          const thumbPath = await generateThumbnail(filePath, photo.file_name, photo.is_video === 1, {
+            size: 400, quality: 80, outputDir: config.thumbnailDir,
+          });
+          if (thumbPath) {
+            photoRepo.setThumbnailPath(photo.id, thumbPath);
+            thumbScanProgress.generated++;
+          }
+        }
+        thumbScanProgress.checked++;
+
+        if (thumbScanProgress.checked % 10 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
       }
-    }
 
-    return { checked: missing.length, generated };
+      thumbScanRunning = false;
+    })();
+
+    return { ok: true, message: 'Thumbnail generation started' };
+  });
+
+  // GET /api/photos/generate-thumbnails/status
+  app.get('/api/photos/generate-thumbnails/status', async () => {
+    return { running: thumbScanRunning, ...thumbScanProgress };
+  });
+
+  // POST /api/photos/generate-thumbnails/cancel
+  app.post('/api/photos/generate-thumbnails/cancel', async () => {
+    thumbScanCancelled = true;
+    return { ok: true };
   });
 
   // GET /api/photos/duplicates — files with same hash in different paths

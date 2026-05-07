@@ -276,8 +276,16 @@ export class ApiService {
     return this.http.post<{ scanned: number; facesFound: number }>(`${this.baseUrl}/faces/scan`, { batch_size: batchSize });
   }
 
-  generateMissingThumbnails(limit: number = 100): Observable<{ checked: number; generated: number }> {
-    return this.http.post<{ checked: number; generated: number }>(`${this.baseUrl}/photos/generate-thumbnails`, { limit });
+  generateMissingThumbnails(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/generate-thumbnails`, {});
+  }
+
+  getThumbnailScanStatus(): Observable<{ running: boolean; checked: number; generated: number; total: number }> {
+    return this.http.get<{ running: boolean; checked: number; generated: number; total: number }>(`${this.baseUrl}/photos/generate-thumbnails/status`);
+  }
+
+  cancelThumbnailScan(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/generate-thumbnails/cancel`, {});
   }
 
   getTvStatus(): Observable<{ dlna: { running: boolean }; slideshow: { available: boolean; url: string } }> {

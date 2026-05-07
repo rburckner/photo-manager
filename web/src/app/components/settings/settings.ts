@@ -139,14 +139,23 @@ import type { CollectionStats } from '../../models/photo.model';
         <p class="section-desc">
           Generate missing thumbnails for photos and videos (requires ffmpeg for videos).
         </p>
-        <div class="action-row">
-          <button class="btn-action" (click)="generateThumbnails()" [disabled]="thumbsRunning">
-            {{ thumbsRunning ? 'Generating...' : 'Generate Missing Thumbnails' }}
-          </button>
-        </div>
-        @if (thumbsResult) {
+        @if (thumbsStatus) {
+          <div class="status-row">
+            <span class="status-label">Progress:</span>
+            <span class="status-value">{{ thumbsStatus.generated.toLocaleString() }} generated, {{ thumbsStatus.checked.toLocaleString() }} / {{ thumbsStatus.total.toLocaleString() }} checked</span>
+          </div>
+          <div class="action-row" style="margin-top: 8px">
+            <button class="btn-action" (click)="generateThumbnails()" [disabled]="thumbsRunning">
+              {{ thumbsRunning ? 'Generating...' : 'Generate Missing Thumbnails' }}
+            </button>
+            @if (thumbsRunning) {
+              <button class="btn-action btn-cancel" (click)="cancelThumbnails()">Cancel</button>
+            }
+          </div>
+        }
+        @if (!thumbsRunning && thumbsStatus && thumbsStatus.total === 0) {
           <div class="result-msg">
-            Checked {{ thumbsResult.checked }}, generated {{ thumbsResult.generated }} thumbnails
+            All photos have thumbnails
           </div>
         }
       </div>
@@ -397,8 +406,9 @@ export class SettingsComponent implements OnInit {
   private gpsPollTimer: ReturnType<typeof setInterval> | null = null;
   embeddingRunning = true; // assume running until status confirms otherwise
   embeddingStatus: { running: boolean; total: number; embedded: number; remaining: number } | null = null;
-  thumbsRunning = false;
-  thumbsResult: { checked: number; generated: number } | null = null;
+  thumbsRunning = true; // assume running until status confirms
+  thumbsStatus: { running: boolean; checked: number; generated: number; total: number } | null = null;
+  private thumbsPollTimer: ReturnType<typeof setInterval> | null = null;
   ingestRunning = false;
   ingestResult: { imported: number; duplicates: number; errors: number } | null = null;
 
@@ -415,6 +425,7 @@ export class SettingsComponent implements OnInit {
     this.settingsService.settings$.subscribe((s) => { this.settings = s; this.cdr.detectChanges(); });
     this.refreshEmbeddingStatus();
     this.refreshGpsStatus();
+    this.refreshThumbsStatus();
     this.api.getTvStatus().subscribe({ next: (s) => { this.dlnaRunning = s.dlna.running; this.cdr.detectChanges(); } });
     this.api.getAlbums().subscribe({ next: (albums) => {
       const tv = albums.find((a: { name: string }) => a.name === 'TV Slideshow');
@@ -516,16 +527,36 @@ export class SettingsComponent implements OnInit {
     });
   }
 
+  private refreshThumbsStatus(): void {
+    this.api.getThumbnailScanStatus().subscribe({ next: (s) => {
+      this.thumbsStatus = s;
+      this.thumbsRunning = s.running;
+      if (s.running && !this.thumbsPollTimer) {
+        this.thumbsPollTimer = setInterval(() => this.refreshThumbsStatus(), 3000);
+      }
+      if (!s.running && this.thumbsPollTimer) {
+        clearInterval(this.thumbsPollTimer);
+        this.thumbsPollTimer = null;
+      }
+      this.cdr.detectChanges();
+    }});
+  }
+
   generateThumbnails(): void {
     this.thumbsRunning = true;
-    this.thumbsResult = null;
-    this.api.generateMissingThumbnails(200).subscribe({
-      next: (result) => {
-        this.thumbsResult = result;
+    this.api.generateMissingThumbnails().subscribe();
+    if (!this.thumbsPollTimer) {
+      this.thumbsPollTimer = setInterval(() => this.refreshThumbsStatus(), 3000);
+    }
+  }
+
+  cancelThumbnails(): void {
+    this.api.cancelThumbnailScan().subscribe({
+      next: () => {
         this.thumbsRunning = false;
-        this.cdr.detectChanges();
+        if (this.thumbsPollTimer) { clearInterval(this.thumbsPollTimer); this.thumbsPollTimer = null; }
+        this.refreshThumbsStatus();
       },
-      error: () => { this.thumbsRunning = false; },
     });
   }
 
