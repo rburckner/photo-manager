@@ -1,4 +1,4 @@
-import * as faceapi from '@vladmandic/face-api';
+import * as faceapi from 'face-api.js';
 import { Canvas, Image, ImageData, createCanvas, loadImage } from 'canvas';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
