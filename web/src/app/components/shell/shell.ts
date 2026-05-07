@@ -23,7 +23,7 @@ import { SettingsService } from '../../services/settings.service';
               Timeline
             </a>
           </li>
-          @if (showFolders) {
+          @if (settingsLoaded && showFolders) {
             <li>
               <a routerLink="/folders" routerLinkActive="active">
                 <span class="icon">&#128193;</span>
@@ -197,6 +197,7 @@ import { SettingsService } from '../../services/settings.service';
 })
 export class ShellComponent implements OnInit {
   showFolders = true;
+  settingsLoaded = false;
 
   constructor(
     private readonly settingsService: SettingsService,
@@ -204,14 +205,15 @@ export class ShellComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    // Use setTimeout to avoid ExpressionChangedAfterItHasBeenCheckedError
-    // Settings emit synchronously from BehaviorSubject during init
-    this.settingsService.settings$.subscribe((settings) => {
-      const show = settings['show_folders_nav'] !== 'false';
-      if (this.showFolders !== show) {
-        this.showFolders = show;
-        setTimeout(() => this.cdr.detectChanges());
-      }
+    // Defer settings subscription to avoid ExpressionChangedAfterItHasBeenCheckedError
+    setTimeout(() => {
+      this.settingsService.settings$.subscribe((settings) => {
+        if (Object.keys(settings).length > 0) {
+          this.showFolders = settings['show_folders_nav'] !== 'false';
+          this.settingsLoaded = true;
+          this.cdr.detectChanges();
+        }
+      });
     });
   }
 }
