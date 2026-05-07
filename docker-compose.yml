@@ -1,0 +1,21 @@
+services:
+  photo-manager:
+    build: .
+    container_name: photo-manager
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount your NAS photos directory (read-only)
+      - /run/user/1000/gvfs/smb-share:server=wd.personal.hq.millabs.net,share=photos:/photos:ro
+      # Persistent data (SQLite DB + thumbnails)
+      - photo-manager-data:/data
+    environment:
+      - PM_MEDIA_ROOT=/photos
+      - PM_DB_PATH=/data/photos.db
+      - PM_THUMBNAIL_DIR=/data/thumbnails
+      - PM_PORT=3000
+      - PM_LOG_LEVEL=info
+    restart: unless-stopped
+
+volumes:
+  photo-manager-data:

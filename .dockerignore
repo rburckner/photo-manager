@@ -1,0 +1,14 @@
+node_modules
+web/node_modules
+web/dist
+web/.angular
+dist
+data
+.git
+.claude
+*.db
+*.db-wal
+*.db-shm
+*.log
+.env
+.env.local
