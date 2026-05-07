@@ -68,6 +68,33 @@ export class ApiService {
     return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/albums/${albumId}/photos`, { body: { photo_ids: photoIds } });
   }
 
+  // Favorites
+  toggleFavorite(id: number): Observable<{ id: number; is_favorite: boolean }> {
+    return this.http.post<{ id: number; is_favorite: boolean }>(`${this.baseUrl}/photos/${id}/favorite`, {});
+  }
+
+  getFavorites(page: number = 1, limit: number = 50): Observable<PaginatedResponse<Photo>> {
+    const params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
+    return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/photos/favorites`, { params });
+  }
+
+  // Stats
+  getStatsByYear(): Observable<Array<{ year: string; count: number }>> {
+    return this.http.get<Array<{ year: string; count: number }>>(`${this.baseUrl}/stats/years`);
+  }
+
+  getStatsByCamera(): Observable<Array<{ camera: string; count: number }>> {
+    return this.http.get<Array<{ camera: string; count: number }>>(`${this.baseUrl}/stats/cameras`);
+  }
+
+  getStatsByType(): Observable<Array<{ mime_type: string; count: number; total_size: number }>> {
+    return this.http.get<Array<{ mime_type: string; count: number; total_size: number }>>(`${this.baseUrl}/stats/types`);
+  }
+
+  getScanStatus(): Observable<{ status: string; processed_files?: number; total_files?: number }> {
+    return this.http.get<{ status: string; processed_files?: number; total_files?: number }>(`${this.baseUrl}/scan/status`);
+  }
+
   // Slideshow
   getSlideshow(shuffle: boolean = true, limit: number = 500, albumId?: number): Observable<SlideshowPhoto[]> {
     let params = new HttpParams().set('limit', limit.toString()).set('shuffle', shuffle.toString());

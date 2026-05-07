@@ -99,6 +99,52 @@ export class PhotoRepository {
     ).all(...params) as PhotoRow[];
   }
 
+  toggleFavorite(id: number): boolean {
+    const photo = this.findById(id);
+    if (!photo) return false;
+    const newValue = photo.is_favorite === 1 ? 0 : 1;
+    this.db.prepare('UPDATE photos SET is_favorite = ? WHERE id = ?').run(newValue, id);
+    return newValue === 1;
+  }
+
+  getFavorites(limit: number, offset: number): { photos: PhotoRow[]; total: number } {
+    const photos = this.db.prepare(
+      'SELECT * FROM photos WHERE is_favorite = 1 ORDER BY COALESCE(date_taken, date_modified) DESC LIMIT ? OFFSET ?',
+    ).all(limit, offset) as PhotoRow[];
+    const total = (this.db.prepare(
+      'SELECT count(*) as count FROM photos WHERE is_favorite = 1',
+    ).get() as { count: number }).count;
+    return { photos, total };
+  }
+
+  getStatsByYear(): Array<{ year: string; count: number }> {
+    return this.db.prepare(`
+      SELECT strftime('%Y', COALESCE(date_taken, date_modified)) as year, count(*) as count
+      FROM photos
+      GROUP BY year
+      ORDER BY year
+    `).all() as Array<{ year: string; count: number }>;
+  }
+
+  getStatsByCamera(): Array<{ camera: string; count: number }> {
+    return this.db.prepare(`
+      SELECT COALESCE(camera_model, 'Unknown') as camera, count(*) as count
+      FROM photos
+      GROUP BY camera
+      ORDER BY count DESC
+      LIMIT 20
+    `).all() as Array<{ camera: string; count: number }>;
+  }
+
+  getStatsByType(): Array<{ mime_type: string; count: number; total_size: number }> {
+    return this.db.prepare(`
+      SELECT mime_type, count(*) as count, sum(file_size) as total_size
+      FROM photos
+      GROUP BY mime_type
+      ORDER BY count DESC
+    `).all() as Array<{ mime_type: string; count: number; total_size: number }>;
+  }
+
   getSlideshow(opts: { limit: number; shuffle: boolean; albumId?: number }): Array<{ id: number; date_taken: string | null; gps_lat: number | null; gps_lng: number | null; folder_path: string; is_video: number }> {
     const order = opts.shuffle ? 'ORDER BY RANDOM()' : 'ORDER BY COALESCE(date_taken, date_modified) DESC';
 

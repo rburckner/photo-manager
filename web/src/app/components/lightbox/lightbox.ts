@@ -106,12 +106,18 @@ import type { Photo, Album } from '../../models/photo.model';
 
         <!-- Controls -->
         <button class="btn-close" (click)="close.emit()">&times;</button>
+        <button class="btn-fav" [class.active]="isFavorite" (click)="toggleFavorite()">
+          {{ isFavorite ? '&#9733;' : '&#9734;' }}
+        </button>
         <button class="btn-info" [class.active]="showInfo" (click)="toggleInfo()">
           &#9432;
         </button>
         <button class="btn-album" [class.active]="showAlbumPicker" (click)="toggleAlbumPicker()">
           &#43;
         </button>
+        <a class="btn-download" [href]="api.getFileUrl(photo.id)" download>
+          &#8615;
+        </a>
         <button class="btn-prev" (click)="prev.emit()">&lsaquo;</button>
         <button class="btn-next" (click)="next.emit()">&rsaquo;</button>
 
@@ -224,7 +230,7 @@ import type { Photo, Album } from '../../models/photo.model';
     }
 
     /* ── Buttons ── */
-    .btn-close, .btn-info, .btn-album, .btn-prev, .btn-next {
+    .btn-close, .btn-fav, .btn-info, .btn-album, .btn-download, .btn-prev, .btn-next {
       position: absolute;
       background: rgba(0, 0, 0, 0.5);
       border: none;
@@ -248,9 +254,20 @@ import type { Photo, Album } from '../../models/photo.model';
       z-index: 10;
     }
 
-    .btn-info {
+    .btn-fav {
       top: 8px;
       right: 52px;
+      width: 36px;
+      height: 36px;
+      font-size: 1.3rem;
+      z-index: 10;
+
+      &.active { color: #f5c518; background: rgba(245, 197, 24, 0.15); }
+    }
+
+    .btn-info {
+      top: 8px;
+      right: 96px;
       width: 36px;
       height: 36px;
       font-size: 1.2rem;
@@ -261,7 +278,7 @@ import type { Photo, Album } from '../../models/photo.model';
 
     .btn-album {
       top: 8px;
-      right: 96px;
+      right: 140px;
       width: 36px;
       height: 36px;
       font-size: 1.4rem;
@@ -271,10 +288,21 @@ import type { Photo, Album } from '../../models/photo.model';
     }
 
     /* ── Album picker ── */
+    .btn-download {
+      top: 8px;
+      right: 184px;
+      width: 36px;
+      height: 36px;
+      font-size: 1.4rem;
+      z-index: 10;
+      text-decoration: none;
+      color: #fff;
+    }
+
     .album-picker {
       position: absolute;
       top: 50px;
-      right: 96px;
+      right: 140px;
       background: #222;
       border: 1px solid #444;
       border-radius: 8px;
@@ -345,6 +373,7 @@ export class LightboxComponent implements OnInit, OnDestroy {
   @Output() next = new EventEmitter<void>();
 
   fullPhoto: Photo | null = null;
+  isFavorite = false;
   showInfo = false;
   showAlbumPicker = false;
   albums: Album[] = [];
@@ -358,6 +387,7 @@ export class LightboxComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.isFavorite = this.photo.is_favorite === 1;
     this.loadFullPhoto();
 
     this.keyHandler = (e: KeyboardEvent) => {
@@ -387,6 +417,16 @@ export class LightboxComponent implements OnInit, OnDestroy {
     this.api.getPhoto(this.photo.id).subscribe({
       next: (photo) => {
         this.fullPhoto = photo;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  toggleFavorite(): void {
+    this.api.toggleFavorite(this.photo.id).subscribe({
+      next: (result) => {
+        this.isFavorite = result.is_favorite;
+        this.photo.is_favorite = result.is_favorite ? 1 : 0;
         this.cdr.detectChanges();
       },
     });

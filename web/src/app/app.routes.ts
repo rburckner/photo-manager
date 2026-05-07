@@ -31,6 +31,14 @@ export const routes: Routes = [
         path: 'search',
         loadComponent: () => import('./components/search/search').then((m) => m.SearchComponent),
       },
+      {
+        path: 'favorites',
+        loadComponent: () => import('./components/favorites/favorites').then((m) => m.FavoritesComponent),
+      },
+      {
+        path: 'stats',
+        loadComponent: () => import('./components/stats/stats').then((m) => m.StatsComponent),
+      },
     ],
   },
 ];

@@ -159,6 +159,50 @@ export async function photoRoutes(
     return photoRepo.getFolders();
   });
 
+  // POST /api/photos/:id/favorite — toggle favorite
+  app.post<{ Params: { id: string } }>('/api/photos/:id/favorite', async (request, reply) => {
+    const id = parseInt(request.params.id, 10);
+    const photo = photoRepo.findById(id);
+    if (!photo) {
+      return reply.code(404).send({ error: 'Photo not found' });
+    }
+    const isFavorite = photoRepo.toggleFavorite(id);
+    return { id, is_favorite: isFavorite };
+  });
+
+  // GET /api/photos/favorites — get favorite photos
+  app.get<{
+    Querystring: { page?: string; limit?: string };
+  }>('/api/photos/favorites', async (request) => {
+    const page = Math.max(1, parseInt(request.query.page ?? '1', 10));
+    const limit = Math.min(200, Math.max(1, parseInt(request.query.limit ?? '50', 10)));
+    const offset = (page - 1) * limit;
+    const { photos, total } = photoRepo.getFavorites(limit, offset);
+    return { photos, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  });
+
+  // GET /api/stats/years — photos by year
+  app.get('/api/stats/years', async () => {
+    return photoRepo.getStatsByYear();
+  });
+
+  // GET /api/stats/cameras — photos by camera
+  app.get('/api/stats/cameras', async () => {
+    return photoRepo.getStatsByCamera();
+  });
+
+  // GET /api/stats/types — photos by file type
+  app.get('/api/stats/types', async () => {
+    return photoRepo.getStatsByType();
+  });
+
+  // GET /api/scan/status — current scan status
+  app.get('/api/scan/status', async () => {
+    const scanProgressRepo = new (await import('../../db/repositories/scan-progress.repository.js')).ScanProgressRepository(photoRepo['db']);
+    const latest = scanProgressRepo.getLatest();
+    return latest ?? { status: 'idle' };
+  });
+
   // GET /api/photos/slideshow — photos for TV slideshow
   app.get<{
     Querystring: { limit?: string; shuffle?: string; album_id?: string };

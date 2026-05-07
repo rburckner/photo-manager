@@ -42,6 +42,18 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
               Search
             </a>
           </li>
+          <li>
+            <a routerLink="/favorites" routerLinkActive="active">
+              <span class="icon">&#9733;</span>
+              Favorites
+            </a>
+          </li>
+          <li>
+            <a routerLink="/stats" routerLinkActive="active">
+              <span class="icon">&#128200;</span>
+              Stats
+            </a>
+          </li>
         </ul>
       </nav>
       <main class="content">
