@@ -377,6 +377,8 @@ export class TimelineComponent implements OnInit, OnDestroy {
     if (saved.fromDate) this.fromDate = saved.fromDate;
     if (saved.toDate) this.toDate = saved.toDate;
     if (saved.activeYear) this.activeYear = saved.activeYear;
+    if (saved.sortBy) this.sortBy = saved.sortBy;
+    if (saved.sortOrder) this.sortOrder = saved.sortOrder;
 
     // Fetch distinct years from DB (filtered, no bogus dates)
     this.api.getDistinctYears().subscribe({
@@ -428,11 +430,13 @@ export class TimelineComponent implements OnInit, OnDestroy {
 
   onSortChange(event: Event): void {
     this.sortBy = (event.target as HTMLSelectElement).value;
+    this.filterService.setSort(this.sortBy, this.sortOrder);
     this.resetAndReload();
   }
 
   toggleSortOrder(): void {
     this.sortOrder = this.sortOrder === 'desc' ? 'asc' : 'desc';
+    this.filterService.setSort(this.sortBy, this.sortOrder);
     this.resetAndReload();
   }
 

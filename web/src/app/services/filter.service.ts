@@ -5,6 +5,8 @@ export interface FilterState {
   fromDate: string;
   toDate: string;
   activeYear: number | null;
+  sortBy: string;
+  sortOrder: 'asc' | 'desc';
 }
 
 const STORAGE_KEY = 'pm_filters';
@@ -14,7 +16,7 @@ function loadFromStorage(): FilterState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw) as FilterState;
   } catch { /* ignore */ }
-  return { fromDate: '', toDate: '', activeYear: null };
+  return { fromDate: '', toDate: '', activeYear: null, sortBy: 'date', sortOrder: 'desc' };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -27,15 +29,19 @@ export class FilterService {
   }
 
   setDateRange(fromDate: string, toDate: string): void {
-    this.update({ fromDate, toDate, activeYear: null });
+    this.update({ ...this.state.value, fromDate, toDate, activeYear: null });
   }
 
   setYear(year: number | null): void {
     if (year === null) {
       this.update({ ...this.state.value, activeYear: null });
     } else {
-      this.update({ fromDate: `${year}-01`, toDate: `${year}-12`, activeYear: year });
+      this.update({ ...this.state.value, fromDate: `${year}-01`, toDate: `${year}-12`, activeYear: year });
     }
+  }
+
+  setSort(sortBy: string, sortOrder: 'asc' | 'desc'): void {
+    this.update({ ...this.state.value, sortBy, sortOrder });
   }
 
   private update(state: FilterState): void {

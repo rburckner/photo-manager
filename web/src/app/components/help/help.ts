@@ -62,6 +62,8 @@ import { CommonModule } from '@angular/common';
             <tr><td>&#9733; Star</td><td>Toggle favorite</td></tr>
             <tr><td>&#9432; Info</td><td>EXIF data, camera, lens, resolution, GPS link</td></tr>
             <tr><td>+ Album</td><td>Add to an album</td></tr>
+            <tr><td>&#8635; Rotate</td><td>Rotate thumbnail 90° clockwise</td></tr>
+            <tr><td>&#128269; Similar</td><td>Find photos from same day, same person, or visually similar</td></tr>
             <tr><td>&#8615; Download</td><td>Download original file</td></tr>
             <tr><td>&lsaquo; &rsaquo; Arrows</td><td>Navigate between photos</td></tr>
             <tr><td>Tags</td><td>Add/remove tags in the info panel</td></tr>
@@ -76,6 +78,7 @@ import { CommonModule } from '@angular/common';
           <li>Favorite / Unfavorite selected photos</li>
           <li>Export as zip download</li>
           <li>Set date for selected photos</li>
+          <li>Hide / Unhide photos</li>
           <li>Add to album</li>
           <li>Remove from album (when inside an album)</li>
         </ul>

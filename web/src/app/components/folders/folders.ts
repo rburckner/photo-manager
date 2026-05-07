@@ -31,6 +31,17 @@ import type { FolderTreeNode, FolderEntry, Photo } from '../../models/photo.mode
           <div class="content-header">
             <h2>{{ selectedFolder }}</h2>
             <span class="photo-count">{{ totalPhotos }} items</span>
+            <div class="sort-controls">
+              <select class="sort-select" [value]="sortBy" (change)="onSortChange($event)">
+                <option value="date">Date</option>
+                <option value="name">Name</option>
+                <option value="size">Size</option>
+                <option value="camera">Camera</option>
+              </select>
+              <button class="sort-order" (click)="toggleSortOrder()">
+                {{ sortOrder === 'desc' ? '&#9660;' : '&#9650;' }}
+              </button>
+            </div>
           </div>
           <div class="photo-grid" (scroll)="onScroll($event)">
             @for (photo of photos; track photo.id) {
@@ -219,6 +230,19 @@ import type { FolderTreeNode, FolderEntry, Photo } from '../../models/photo.mode
       .photo-count { font-size: 0.8rem; color: #666; }
     }
 
+    .sort-controls {
+      display: flex; align-items: center; gap: 4px; margin-left: auto;
+    }
+    .sort-select {
+      background: #222; border: 1px solid #444; color: #e0e0e0;
+      padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;
+    }
+    .sort-order {
+      background: #222; border: 1px solid #444; color: #aaa;
+      padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;
+      &:hover { background: #333; }
+    }
+
     .photo-grid {
       flex: 1;
       overflow-y: auto;
@@ -290,6 +314,8 @@ export class FoldersComponent implements OnInit, OnDestroy {
   photos: Photo[] = [];
   loadingPhotos = false;
   totalPhotos = 0;
+  sortBy = 'date';
+  sortOrder: 'asc' | 'desc' = 'desc';
   currentPage = 1;
   hasMorePhotos = true;
 
@@ -404,11 +430,27 @@ export class FoldersComponent implements OnInit, OnDestroy {
     node.expanded = !node.expanded;
   }
 
+  onSortChange(event: Event): void {
+    this.sortBy = (event.target as HTMLSelectElement).value;
+    this.photos = [];
+    this.currentPage = 1;
+    this.hasMorePhotos = true;
+    this.loadPhotos();
+  }
+
+  toggleSortOrder(): void {
+    this.sortOrder = this.sortOrder === 'desc' ? 'asc' : 'desc';
+    this.photos = [];
+    this.currentPage = 1;
+    this.hasMorePhotos = true;
+    this.loadPhotos();
+  }
+
   loadPhotos(): void {
     if (this.loadingPhotos || !this.hasMorePhotos || !this.selectedFolder) return;
 
     this.loadingPhotos = true;
-    this.api.getPhotos(this.currentPage, 100, this.selectedFolder).subscribe({
+    this.api.getPhotos(this.currentPage, 100, this.selectedFolder, this.sortBy, this.sortOrder).subscribe({
       next: (response) => {
         this.photos.push(...response.photos);
         this.totalPhotos = response.pagination.total;
