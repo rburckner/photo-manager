@@ -59,9 +59,6 @@ import type { Album } from '../../models/photo.model';
           }
           <button class="bar-btn btn-danger" (click)="bulkDelete()">&#128465; Delete</button>
         </div>
-        @if (actionMessage) {
-          <span class="action-msg">{{ actionMessage }}</span>
-        }
       </div>
     }
   `,
@@ -165,12 +162,6 @@ import type { Album } from '../../models/photo.model';
       text-align: center;
       font-size: 0.8rem;
     }
-
-    .action-msg {
-      color: #8c8;
-      font-size: 0.8rem;
-      margin-left: auto;
-    }
   `],
 })
 export class SelectionBarComponent implements OnInit, OnDestroy {
@@ -180,7 +171,6 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
   showDatePicker = false;
   albums: Album[] = [];
   activeAlbumId: number | null = null;
-  actionMessage = '';
   isHiddenView = false;
 
   private subs: Subscription[] = [];
@@ -217,19 +207,17 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
   clearSelection(): void {
     this.selection.exitSelectionMode();
     this.showAlbumDropdown = false;
-    this.actionMessage = '';
   }
 
   bulkHide(hidden: boolean): void {
     const ids = this.selection.ids;
     this.api.bulkHide(ids, hidden).subscribe({
       next: () => {
-        this.actionMessage = `${hidden ? 'Hidden' : 'Unhidden'} ${ids.length} photos`;
         this.selection.exitSelectionMode();
         this.selection.notifyRefresh();
-        this.cdr.detectChanges();
-        setTimeout(() => { this.actionMessage = ''; this.cdr.detectChanges(); }, 2000);
+        this.toast.success(`${hidden ? 'Hidden' : 'Unhidden'} ${ids.length} photos`);
       },
+      error: () => this.toast.error(`${hidden ? 'Hide' : 'Unhide'} failed`),
     });
   }
 
@@ -242,29 +230,23 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
     this.api.bulkSetDate(ids, date).subscribe({
       next: () => {
         this.showDatePicker = false;
-        this.actionMessage = `Set date to ${month} for ${ids.length} photos`;
-        this.cdr.detectChanges();
-        setTimeout(() => { this.actionMessage = ''; this.cdr.detectChanges(); }, 2000);
+        this.toast.success(`Set date to ${month} for ${ids.length} photos`);
       },
+      error: () => this.toast.error('Set date failed'),
     });
   }
 
   exportSelected(): void {
     const ids = this.selection.ids;
     this.api.exportPhotos(ids);
-    this.actionMessage = `Preparing zip of ${ids.length} photos...`;
-    this.cdr.detectChanges();
-    setTimeout(() => { this.actionMessage = ''; this.cdr.detectChanges(); }, 3000);
+    this.toast.info(`Preparing zip of ${ids.length} photos...`);
   }
 
   bulkFavorite(value: boolean): void {
     const ids = this.selection.ids;
     this.api.bulkFavorite(ids, value).subscribe({
-      next: () => {
-        this.actionMessage = `${value ? 'Favorited' : 'Unfavorited'} ${ids.length} photos`;
-        this.cdr.detectChanges();
-        setTimeout(() => { this.actionMessage = ''; this.cdr.detectChanges(); }, 2000);
-      },
+      next: () => this.toast.success(`${value ? 'Favorited' : 'Unfavorited'} ${ids.length} photos`),
+      error: () => this.toast.error(`${value ? 'Favorite' : 'Unfavorite'} failed`),
     });
   }
 
@@ -278,10 +260,9 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
       next: () => {
         this.showAlbumDropdown = false;
         const album = this.albums.find((a) => a.id === albumId);
-        this.actionMessage = `Added ${ids.length} photos to "${album?.name}"`;
-        this.cdr.detectChanges();
-        setTimeout(() => { this.actionMessage = ''; this.cdr.detectChanges(); }, 2000);
+        this.toast.success(`Added ${ids.length} photos to "${album?.name ?? 'album'}"`);
       },
+      error: () => this.toast.error('Add to album failed'),
     });
   }
 
@@ -289,11 +270,8 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
     if (!this.activeAlbumId) return;
     const ids = this.selection.ids;
     this.api.removePhotosFromAlbum(this.activeAlbumId, ids).subscribe({
-      next: () => {
-        this.actionMessage = `Removed ${ids.length} photos from album`;
-        this.cdr.detectChanges();
-        setTimeout(() => { this.actionMessage = ''; this.cdr.detectChanges(); }, 2000);
-      },
+      next: () => this.toast.success(`Removed ${ids.length} photos from album`),
+      error: () => this.toast.error('Remove from album failed'),
     });
   }
 

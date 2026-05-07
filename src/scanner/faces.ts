@@ -17,14 +17,14 @@ export async function loadFaceModels(modelsDir: string): Promise<void> {
   const log = getLogger();
 
   // Patch face-api to use node-canvas
-  /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
+  /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return */
   faceapi.env.monkeyPatch({
     Canvas: Canvas as any,
     Image: Image as any,
     ImageData: ImageData as any,
     createCanvasElement: () => createCanvas(1, 1) as any,
     createImageElement: () => new Image() as any,
-  } as any);
+  });
   /* eslint-enable */
 
   if (!existsSync(modelsDir)) {
@@ -78,7 +78,7 @@ export async function detectFacesInPhoto(
     ctx.drawImage(img, 0, 0);
 
     const detections = await faceapi
-      .detectAllFaces(canvas as unknown as HTMLCanvasElement)
+      .detectAllFaces(canvas)
       .withFaceLandmarks()
       .withFaceDescriptors();
 
@@ -108,7 +108,11 @@ export async function detectFacesInPhoto(
 }
 
 // Cancellation flag for face scans
-let faceScanCancelled = false;
+let faceScanCancelled: boolean = false;
+
+// Wrap in a function so TypeScript's flow analysis doesn't narrow the value
+// to its last-assigned literal — this flag IS mutated from cancelFaceScan().
+function isFaceScanCancelled(): boolean { return faceScanCancelled; }
 let faceScanRunning = false;
 
 export function cancelFaceScan(): boolean {
@@ -155,7 +159,7 @@ export async function runFaceScan(
   let scanned = 0;
 
   for (let i = 0; i < photoIds.length; i++) {
-    if (faceScanCancelled) {
+    if (isFaceScanCancelled()) {
       log.info({ scanned, facesFound }, 'Face scan cancelled by user');
       break;
     }

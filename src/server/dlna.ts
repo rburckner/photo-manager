@@ -81,7 +81,7 @@ export function startDlnaServer(
 
   server.listen(DLNA_PORT, '0.0.0.0', () => {
     log.info({ port: DLNA_PORT, ip: localIp }, 'DLNA server started');
-    ssdp.start();
+    void ssdp.start();
     log.info('SSDP advertisement started — TV should discover "Photo Manager"');
   });
 

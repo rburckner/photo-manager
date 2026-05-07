@@ -215,7 +215,8 @@ export class TrashComponent implements OnInit, OnDestroy {
   }
 
   emptyTrash(): void {
-    if (!confirm(`Permanently delete all ${this.totalPhotos} items? This cannot be undone.`)) return;
+    const sizeStr = this.totalSize > 0 ? ` (${this.formatSize(this.totalSize)})` : '';
+    if (!confirm(`Permanently delete all ${this.totalPhotos} items${sizeStr}? This cannot be undone.`)) return;
     this.working = true;
     this.api.emptyTrash().subscribe({
       next: (res) => {

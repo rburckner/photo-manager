@@ -46,7 +46,7 @@ function probeVideo(filePath: string): Promise<VideoProbe> {
   return new Promise((resolve, reject) => {
     ffmpeg.ffprobe(filePath, (err, metadata) => {
       if (err) {
-        reject(err);
+        reject(err instanceof Error ? err : new Error(String(err)));
         return;
       }
 

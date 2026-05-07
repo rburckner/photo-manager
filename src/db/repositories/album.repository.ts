@@ -44,7 +44,9 @@ export class AlbumRepository {
       'INSERT INTO albums (name, description) VALUES (?, ?)',
     ).run(data.name, data.description ?? null);
 
-    return this.findById(Number(result.lastInsertRowid))!;
+    const created = this.findById(Number(result.lastInsertRowid));
+    if (!created) throw new Error('Album insert succeeded but row not found');
+    return created;
   }
 
   update(id: number, data: AlbumUpdate): AlbumRow | undefined {

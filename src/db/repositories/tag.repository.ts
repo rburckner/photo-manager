@@ -28,7 +28,9 @@ export class TagRepository {
     const result = this.db.prepare(
       'INSERT INTO tags (name, color) VALUES (?, ?)',
     ).run(name, color ?? null);
-    return this.findById(Number(result.lastInsertRowid))!;
+    const created = this.findById(Number(result.lastInsertRowid));
+    if (!created) throw new Error('Tag insert succeeded but row not found');
+    return created;
   }
 
   delete(id: number): void {

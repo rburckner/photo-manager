@@ -12,7 +12,7 @@ export async function tagRoutes(
 
   app.post<{ Body: { name: string; color?: string } }>('/api/tags', async (request, reply) => {
     const { name, color } = request.body;
-    if (!name?.trim()) return reply.code(400).send({ error: 'Name is required' });
+    if (typeof name !== 'string' || !name.trim()) return reply.code(400).send({ error: 'Name is required' });
     return tagRepo.create(name.trim(), color);
   });
 

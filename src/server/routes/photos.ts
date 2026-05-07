@@ -235,7 +235,8 @@ export async function photoRoutes(
 
   // Thumbnail generation state
   let thumbScanRunning = false;
-  let thumbScanCancelled = false;
+  let thumbScanCancelled: boolean = false;
+  const isThumbCancelled = (): boolean => thumbScanCancelled;
   let thumbScanProgress = { checked: 0, generated: 0, total: 0 };
 
   // POST /api/photos/generate-thumbnails — start thumbnail backfill (non-blocking)
@@ -252,7 +253,7 @@ export async function photoRoutes(
       thumbScanProgress.total = allMissing.length;
 
       for (const photo of allMissing) {
-        if (thumbScanCancelled) break;
+        if (isThumbCancelled()) break;
 
         const filePath = join(config.mediaRoot, photo.file_path);
         if (existsSync(filePath)) {
@@ -295,7 +296,8 @@ export async function photoRoutes(
 
   // GPS re-scan state
   let gpsScanRunning = false;
-  let gpsScanCancelled = false;
+  let gpsScanCancelled: boolean = false;
+  const isGpsCancelled = (): boolean => gpsScanCancelled;
   let gpsScanProgress = { checked: 0, found: 0, total: 0 };
 
   // POST /api/photos/rescan-gps — start GPS re-scan (non-blocking)
@@ -313,7 +315,7 @@ export async function photoRoutes(
       gpsScanProgress.total = allMissing.length;
 
       for (const photo of allMissing) {
-        if (gpsScanCancelled) break;
+        if (isGpsCancelled()) break;
 
         const filePath = join(config.mediaRoot, photo.file_path);
         if (existsSync(filePath)) {
@@ -362,7 +364,7 @@ export async function photoRoutes(
 
   // POST /api/embeddings/scan — start embedding scan (non-blocking)
   app.post<{ Body: { batch_size?: number } }>('/api/embeddings/scan', async (request) => {
-    const batchSize = request.body?.batch_size ?? 50;
+    const batchSize = (request.body as { batch_size?: number } | null)?.batch_size ?? 50;
     const { runEmbeddingScan, isEmbeddingScanRunning } = await import('../../scanner/embeddings.js');
 
     if (isEmbeddingScanRunning()) {
@@ -535,7 +537,7 @@ export async function photoRoutes(
   app.get<{
     Querystring: { q: string; page?: string; limit?: string };
   }>('/api/photos/search', async (request, reply) => {
-    const query = request.query.q?.trim();
+    const query = typeof request.query.q === 'string' ? request.query.q.trim() : '';
     if (!query) {
       return reply.code(400).send({ error: 'Query parameter q is required' });
     }
@@ -567,7 +569,7 @@ export async function photoRoutes(
   app.post('/api/tv/dlna/start', async () => {
     const { startDlnaServer, getDlnaStatus } = await import('../dlna.js');
     const { AlbumRepository } = await import('../../db/repositories/album.repository.js');
-    const albumRepo = new AlbumRepository(photoRepo['db'] as import('better-sqlite3').Database);
+    const albumRepo = new AlbumRepository(photoRepo['db']);
     if (!getDlnaStatus().running) {
       startDlnaServer(photoRepo, albumRepo, config);
     }
@@ -612,7 +614,7 @@ export async function photoRoutes(
 
   // GET /api/settings — app settings
   app.get('/api/settings', async () => {
-    const db = photoRepo['db'] as import('better-sqlite3').Database;
+    const db = photoRepo['db'];
     const rows = db.prepare('SELECT key, value FROM app_settings').all() as Array<{ key: string; value: string }>;
     const settings: Record<string, string> = {};
     for (const row of rows) {
@@ -623,11 +625,11 @@ export async function photoRoutes(
 
   // PUT /api/settings — update settings
   app.put<{ Body: Record<string, string> }>('/api/settings', async (request) => {
-    const db = photoRepo['db'] as import('better-sqlite3').Database;
+    const db = photoRepo['db'];
     const stmt = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
     const entries = Object.entries(request.body);
     for (const [key, value] of entries) {
-      stmt.run(key, String(value));
+      stmt.run(key, value);
     }
     return { ok: true };
   });
@@ -672,7 +674,7 @@ export async function photoRoutes(
   // POST /api/photos/:id/rotate — rotate photo thumbnail
   app.post<{ Params: { id: string }; Body: { degrees: number } }>('/api/photos/:id/rotate', async (request, reply) => {
     const id = parseInt(request.params.id, 10);
-    const degrees = request.body?.degrees ?? 90;
+    const degrees = (request.body as { degrees?: number } | null)?.degrees ?? 90;
     const photo = photoRepo.findById(id);
     if (!photo) return reply.code(404).send({ error: 'Photo not found' });
 

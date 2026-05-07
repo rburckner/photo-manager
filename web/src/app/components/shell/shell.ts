@@ -1,10 +1,13 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { NavigationEnd, Router, RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { filter, Subscription } from 'rxjs';
 import { SelectionBarComponent } from '../selection-bar/selection-bar';
 import { ShortcutsComponent } from '../shortcuts/shortcuts';
 import { NotificationBellComponent } from '../notification-bell/notification-bell';
 import { ToastComponent } from '../toast/toast';
+import { ApiService } from '../../services/api.service';
+import { SelectionService } from '../../services/selection.service';
 import { SettingsService } from '../../services/settings.service';
 
 @Component({
@@ -85,6 +88,9 @@ import { SettingsService } from '../../services/settings.service';
             <a routerLink="/trash" routerLinkActive="active">
               <span class="icon">&#128465;</span>
               Trash
+              @if (trashCount > 0) {
+                <span class="badge">{{ trashCount }}</span>
+              }
             </a>
           </li>
           <li>
@@ -171,6 +177,17 @@ import { SettingsService } from '../../services/settings.service';
       .icon {
         font-size: 1.1rem;
       }
+
+      .badge {
+        margin-left: auto;
+        background: #3a4a6a;
+        color: #ccd;
+        font-size: 0.7rem;
+        padding: 2px 7px;
+        border-radius: 10px;
+        min-width: 20px;
+        text-align: center;
+      }
     }
 
     .content {
@@ -218,12 +235,18 @@ import { SettingsService } from '../../services/settings.service';
     }
   `],
 })
-export class ShellComponent implements OnInit {
+export class ShellComponent implements OnInit, OnDestroy {
   showFolders = true;
   settingsLoaded = false;
+  trashCount = 0;
+
+  private readonly subs: Subscription[] = [];
 
   constructor(
     private readonly settingsService: SettingsService,
+    private readonly api: ApiService,
+    private readonly selection: SelectionService,
+    private readonly router: Router,
     private readonly cdr: ChangeDetectorRef,
   ) {}
 
@@ -237,6 +260,27 @@ export class ShellComponent implements OnInit {
           this.cdr.detectChanges();
         }
       });
+    });
+
+    // Trash count: fetch on load, on bulk-action refresh, and on every navigation.
+    this.refreshTrashCount();
+    this.subs.push(
+      this.selection.refresh$.subscribe(() => this.refreshTrashCount()),
+      this.router.events.pipe(filter((e) => e instanceof NavigationEnd))
+        .subscribe(() => this.refreshTrashCount()),
+    );
+  }
+
+  ngOnDestroy(): void {
+    this.subs.forEach((s) => s.unsubscribe());
+  }
+
+  private refreshTrashCount(): void {
+    this.api.getTrashStats().subscribe({
+      next: (s) => {
+        this.trashCount = s.count;
+        this.cdr.detectChanges();
+      },
     });
   }
 }

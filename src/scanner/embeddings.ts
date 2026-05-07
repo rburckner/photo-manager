@@ -7,8 +7,13 @@ import type { AppConfig } from '../shared/types.js';
 import { getLogger } from '../shared/logger.js';
 
 let model: tf.GraphModel | null = null;
-let embeddingRunning = false;
-let embeddingCancelled = false;
+let embeddingRunning: boolean = false;
+let embeddingCancelled: boolean = false;
+
+// Wrap in a function so TypeScript's flow analysis doesn't narrow the value
+// to its last-assigned literal — this flag IS mutated by a separate function
+// (cancelEmbedding) at runtime.
+function isCancelled(): boolean { return embeddingCancelled; }
 
 // MobileNet v2 produces 1024-dim feature vectors
 
@@ -93,7 +98,7 @@ export async function runEmbeddingScan(
   );
 
   // Loop through batches until done or cancelled
-  while (!embeddingCancelled) {
+  while (!isCancelled()) {
     const photoIds = (db.prepare(`
       SELECT p.id FROM photos p
       LEFT JOIN image_embeddings e ON e.photo_id = p.id
@@ -107,7 +112,7 @@ export async function runEmbeddingScan(
     let batchEmbedded = 0;
 
     for (const photoId of photoIds) {
-      if (embeddingCancelled) break;
+      if (isCancelled()) break;
 
       const photo = db.prepare('SELECT thumbnail_path, file_path FROM photos WHERE id = ?')
         .get(photoId) as { thumbnail_path: string | null; file_path: string } | undefined;

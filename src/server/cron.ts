@@ -6,9 +6,31 @@ import { FaceRepository } from '../db/repositories/face.repository.js';
 import { runScan } from '../scanner/index.js';
 import type { AppConfig } from '../shared/types.js';
 import { getLogger } from '../shared/logger.js';
+import { getDb } from '../db/connection.js';
 
 const DEFAULT_CRON_HOUR = 2; // 2 AM
-const TRASH_RETENTION_DAYS = parseInt(process.env['PM_TRASH_RETENTION_DAYS'] ?? '30', 10);
+const DEFAULT_TRASH_RETENTION_DAYS = 30;
+
+/**
+ * Resolve trash retention precedence: app_settings DB row > env var > default.
+ * Read at each cron run so changes via the Settings UI take effect without a restart.
+ */
+function getTrashRetentionDays(config: AppConfig): number {
+  try {
+    const db = getDb(config.dbPath);
+    const row = db.prepare("SELECT value FROM app_settings WHERE key = 'trash_retention_days'")
+      .get() as { value: string } | undefined;
+    if (row?.value) {
+      const parsed = parseInt(row.value, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+  } catch {
+    // Fall through to env / default
+  }
+  const envParsed = parseInt(process.env['PM_TRASH_RETENTION_DAYS'] ?? '', 10);
+  if (!isNaN(envParsed) && envParsed > 0) return envParsed;
+  return DEFAULT_TRASH_RETENTION_DAYS;
+}
 
 /**
  * Permanently delete photos that have been in trash longer than the retention window.
@@ -19,12 +41,13 @@ export async function runAutoPurge(
   photoRepo: PhotoRepository,
 ): Promise<{ purged: number; errors: number }> {
   const log = getLogger();
-  const expired = photoRepo.getExpiredTrash(TRASH_RETENTION_DAYS);
+  const retentionDays = getTrashRetentionDays(config);
+  const expired = photoRepo.getExpiredTrash(retentionDays);
   if (expired.length === 0) {
     return { purged: 0, errors: 0 };
   }
 
-  log.info({ count: expired.length, retentionDays: TRASH_RETENTION_DAYS }, 'Auto-purging expired trash');
+  log.info({ count: expired.length, retentionDays }, 'Auto-purging expired trash');
 
   let purged = 0;
   let errors = 0;
@@ -189,11 +212,11 @@ export function startCronReindex(
       // Generate missing thumbnails (videos + any failed images)
       try {
         const { generateThumbnail } = await import('../scanner/thumbnails.js');
-        const { join } = await import('node:path');
+        const path = await import('node:path');
         const missing = photoRepo.getPhotosWithoutThumbnails(200);
         let thumbsGenerated = 0;
         for (const photo of missing) {
-          const filePath = join(config.mediaRoot, photo.file_path);
+          const filePath = path.join(config.mediaRoot, photo.file_path);
           const thumbPath = await generateThumbnail(filePath, photo.file_name, photo.is_video === 1, {
             size: config.thumbnailSize,
             quality: config.thumbnailQuality,

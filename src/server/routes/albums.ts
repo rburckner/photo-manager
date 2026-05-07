@@ -19,7 +19,7 @@ export async function albumRoutes(
     Body: { name: string; description?: string };
   }>('/api/albums', async (request, reply) => {
     const { name, description } = request.body;
-    if (!name?.trim()) {
+    if (typeof name !== 'string' || !name.trim()) {
       return reply.code(400).send({ error: 'Name is required' });
     }
     const album = albumRepo.create({ name: name.trim(), description: description?.trim() });

@@ -290,6 +290,26 @@ import type { CollectionStats } from '../../models/photo.model';
         </label>
       </div>
 
+      <!-- Trash -->
+      <div class="setting-section">
+        <h3>Trash</h3>
+        <p class="section-desc">
+          How long deleted photos stay in the trash before being permanently removed.
+          Daily cleanup runs at the same time as the re-index.
+        </p>
+        <label class="toggle-row">
+          <span>Retention (days)</span>
+          <input
+            type="number"
+            min="1"
+            max="365"
+            class="number-input"
+            [value]="settings['trash_retention_days'] || '30'"
+            (change)="setRetentionDays($event)"
+          />
+        </label>
+      </div>
+
       <!-- Cleanup -->
       <div class="setting-section">
         <h3>Pending Cleanup</h3>
@@ -504,6 +524,16 @@ import type { CollectionStats } from '../../models/photo.model';
       input { cursor: pointer; }
     }
 
+    .number-input {
+      width: 64px;
+      padding: 4px 6px;
+      background: #1a1a1a;
+      border: 1px solid #444;
+      color: #ddd;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+
     .btn-small {
       background: #2a2a2a;
       border: 1px solid #444;
@@ -578,6 +608,13 @@ export class SettingsComponent implements OnInit {
   toggleSetting(key: string, event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     this.settingsService.set(key, checked ? 'true' : 'false');
+  }
+
+  setRetentionDays(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    const days = parseInt(value, 10);
+    if (isNaN(days) || days < 1 || days > 365) return;
+    this.settingsService.set('trash_retention_days', String(days));
   }
 
   private embeddingPollTimer: ReturnType<typeof setInterval> | null = null;

@@ -86,9 +86,9 @@ program
 
     console.log('\nPhoto Manager Statistics:');
     console.log(`  Total items:     ${stats.total.toLocaleString()}`);
-    console.log(`  Images:          ${(stats.images ?? 0).toLocaleString()}`);
-    console.log(`  Videos:          ${(stats.videos ?? 0).toLocaleString()}`);
-    console.log(`  Total size:      ${formatBytes(stats.totalSize ?? 0)}`);
+    console.log(`  Images:          ${stats.images.toLocaleString()}`);
+    console.log(`  Videos:          ${stats.videos.toLocaleString()}`);
+    console.log(`  Total size:      ${formatBytes(stats.totalSize)}`);
     if (stats.earliestDate) {
       console.log(`  Date range:      ${stats.earliestDate.slice(0, 10)} to ${stats.latestDate?.slice(0, 10) ?? 'unknown'}`);
     }

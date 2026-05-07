@@ -53,8 +53,8 @@ export async function extractExif(filePath: string): Promise<ExifData> {
       const latRef = exif.GPSInfo.GPSLatitudeRef;
       const lngRef = exif.GPSInfo.GPSLongitudeRef;
 
-      const lat = parseGpsCoord(rawLat, latRef as string | undefined);
-      const lng = parseGpsCoord(rawLng, lngRef as string | undefined);
+      const lat = parseGpsCoord(rawLat, latRef);
+      const lng = parseGpsCoord(rawLng, lngRef);
 
       if (lat !== null && lng !== null) {
         result.gpsLat = lat;

@@ -90,7 +90,7 @@ export async function faceRoutes(
 
   // POST /api/faces/scan — trigger face detection (non-blocking)
   app.post<{ Body: { batch_size?: number } }>('/api/faces/scan', async (request) => {
-    const batchSize = request.body?.batch_size ?? 50;
+    const batchSize = (request.body as { batch_size?: number } | null)?.batch_size ?? 50;
     const { runFaceScanWorker, isFaceScanRunning } = await import('../../scanner/faces.js');
     if (isFaceScanRunning()) return { ok: true, message: 'Already running' };
     void runFaceScanWorker(photoRepo, faceRepo, config, batchSize);

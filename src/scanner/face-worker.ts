@@ -44,14 +44,14 @@ const config = workerData as WorkerConfig;
 
 async function init(): Promise<void> {
   // Patch face-api for node-canvas
-  /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
+  /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return */
   faceapi.env.monkeyPatch({
     Canvas: Canvas as any,
     Image: Image as any,
     ImageData: ImageData as any,
     createCanvasElement: () => createCanvas(1, 1) as any,
     createImageElement: () => new Image() as any,
-  } as any);
+  });
   /* eslint-enable */
 
   if (!existsSync(config.modelsDir)) {
@@ -86,7 +86,7 @@ async function detectFaces(req: DetectRequest): Promise<void> {
     ctx.drawImage(img, 0, 0);
 
     const detections = await faceapi
-      .detectAllFaces(canvas as unknown as HTMLCanvasElement)
+      .detectAllFaces(canvas)
       .withFaceLandmarks()
       .withFaceDescriptors();
 
@@ -106,9 +106,7 @@ async function detectFaces(req: DetectRequest): Promise<void> {
 }
 
 parentPort?.on('message', (msg: DetectRequest) => {
-  if (msg.type === 'detect') {
-    void detectFaces(msg);
-  }
+  void detectFaces(msg);
 });
 
 void init();
