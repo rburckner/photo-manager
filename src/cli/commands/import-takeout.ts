@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { readdir, readFile, stat, rename, mkdir } from 'node:fs/promises';
+import { readdir, readFile, stat, copyFile, unlink, mkdir } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -141,7 +141,8 @@ async function processDirectory(
         log.info({ file: entry.name, dest: `imported/${date}/${destFile}` }, 'Would import');
       } else {
         await mkdir(destDir, { recursive: true });
-        await rename(fullPath, destPath);
+        await copyFile(fullPath, destPath);
+        await unlink(fullPath);
         log.debug({ file: entry.name, dest: destPath }, 'Imported');
       }
 

@@ -11,10 +11,13 @@ services:
       - ${PM_HOST_PHOTOS_DIR:?Set PM_HOST_PHOTOS_DIR in .env}:/photos
       # Persistent data (SQLite DB + thumbnails)
       - photo-manager-data:/data
+      # Inbox for photo ingestion (drop files here from the host)
+      - ${PM_HOST_INBOX_DIR:-./inbox}:/inbox
     environment:
       - PM_MEDIA_ROOT=/photos
       - PM_DB_PATH=/data/photos.db
       - PM_THUMBNAIL_DIR=/data/thumbnails
+      - PM_DROPBOX_DIR=/inbox
       - PM_PORT=3000
       - PM_LOG_LEVEL=info
     restart: unless-stopped

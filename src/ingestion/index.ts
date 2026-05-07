@@ -1,5 +1,5 @@
 import { watch } from 'node:fs';
-import { readdir, stat, rename, mkdir, readFile } from 'node:fs/promises';
+import { readdir, stat, unlink, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { SUPPORTED_EXTENSIONS } from '../shared/constants.js';
@@ -69,7 +69,9 @@ export async function processInbox(
       const destPath = join(destDir, `${hash}${ext}`);
 
       await mkdir(destDir, { recursive: true });
-      await rename(filePath, destPath);
+      // Use read+write+delete (rename and copyFile fail across filesystems/GVFS)
+      await writeFile(destPath, fileBuffer);
+      await unlink(filePath);
 
       log.info({ file: entry.name, hash, destination: destPath }, 'File ingested');
       results.push({
