@@ -64,6 +64,17 @@ npx tsx src/cli/index.ts migrate        # Run pending migrations
 3. Albums (manual curation)
 4. GPS map view (Leaflet/OpenStreetMap)
 5. Face detection + person recognition (face-api.js)
+   - People nav view: horizontal scrollable face circles, click to filter
+   - Person exclusion (hidden flag): hide a person's face cluster from timeline/search/people view
+     but keep all files on disk. Photos with ONLY hidden people are filtered; mixed photos still show.
+   - Accessible via Folders view or "show hidden" toggle
+   - Three person states: **named** (visible everywhere), **hidden** (ex-wife — filtered from
+     timeline/people but files kept forever), **ignored** (strangers/background — photos still show
+     in timeline, but face circle hidden from People view to declutter the UI)
+   - Triage workflow: clusters sorted by frequency, "needs review" queue, easy name/ignore/skip per cluster
+   - "Manage ignored" toggle in People view to review/reinstate ignored faces
+   - Schema: `people (id, name, status ['named','hidden','ignored'])`,
+     `faces (id, photo_id, person_id, embedding, x, y, w, h)`
 6. Dropbox ingestion path (cron-scanned inbox)
 7. Docker image (linux/arm64 for Raspberry Pi)
 8. PWA mobile app + device pairing

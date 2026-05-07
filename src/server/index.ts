@@ -10,8 +10,12 @@ import { PhotoRepository } from '../db/repositories/photo.repository.js';
 import { AlbumRepository } from '../db/repositories/album.repository.js';
 import { photoRoutes } from './routes/photos.js';
 import { albumRoutes } from './routes/albums.js';
+import { faceRoutes } from './routes/faces.js';
+import { FaceRepository } from '../db/repositories/face.repository.js';
 import { startDlnaServer } from './dlna.js';
 import { startInboxWatcher } from '../ingestion/index.js';
+import { startCronReindex } from './cron.js';
+import { ScanProgressRepository } from '../db/repositories/scan-progress.repository.js';
 
 const config = loadConfig();
 const log = initLogger({ logLevel: config.logLevel });
@@ -70,6 +74,9 @@ async function start(): Promise<void> {
   await app.register(photoRoutes, { photoRepo, config });
   await app.register(albumRoutes, { albumRepo });
 
+  const faceRepo = new FaceRepository(db);
+  await app.register(faceRoutes, { faceRepo, photoRepo, config });
+
   // Serve Angular build if it exists (production mode)
   const webDistPath = join(import.meta.dirname, '../../web/dist/photo-manager/browser');
   if (existsSync(webDistPath)) {
@@ -98,6 +105,10 @@ async function start(): Promise<void> {
 
   // Start inbox watcher for photo ingestion
   startInboxWatcher(config, photoRepo);
+
+  // Start daily re-index cron (default 2 AM)
+  const scanProgressRepo = new ScanProgressRepository(db);
+  startCronReindex(config, photoRepo, scanProgressRepo);
 
   const shutdown = async (): Promise<void> => {
     log.info('Shutting down...');

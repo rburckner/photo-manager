@@ -88,6 +88,15 @@ export interface MapPoint {
   is_video: number;
 }
 
+export interface PersonSummary {
+  id: number;
+  name: string | null;
+  status: string;
+  photo_count: number;
+  representative_photo_id: number | null;
+  face_box: { x: number; y: number; width: number; height: number } | null;
+}
+
 export interface Album {
   id: number;
   name: string;

@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import type { Photo, TimelineResponse, CollectionStats, PaginatedResponse, FolderEntry, Album, MapPoint, SlideshowPhoto } from '../models/photo.model';
+import type { Photo, TimelineResponse, CollectionStats, PaginatedResponse, FolderEntry, Album, MapPoint, SlideshowPhoto, PersonSummary } from '../models/photo.model';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -119,6 +119,14 @@ export class ApiService {
     return this.http.post<{ imported: number; duplicates: number; errors: number }>(`${this.baseUrl}/ingest`, {});
   }
 
+  getCleanupLog(): Observable<Array<{ id: number; file_path: string; reason: string }>> {
+    return this.http.get<Array<{ id: number; file_path: string; reason: string }>>(`${this.baseUrl}/cleanup`);
+  }
+
+  clearCleanupItem(id: number): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.baseUrl}/cleanup/${id}`);
+  }
+
   getExportUrl(photoIds: number[]): string {
     return `${this.baseUrl}/photos/export`;
   }
@@ -147,6 +155,29 @@ export class ApiService {
   searchPhotos(query: string, page: number = 1, limit: number = 50): Observable<PaginatedResponse<Photo>> {
     const params = new HttpParams().set('q', query).set('page', page.toString()).set('limit', limit.toString());
     return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/photos/search`, { params });
+  }
+
+  // People & Faces
+  getPeople(includeIgnored: boolean = false): Observable<PersonSummary[]> {
+    const params = includeIgnored ? new HttpParams().set('include_ignored', 'true') : undefined;
+    return this.http.get<PersonSummary[]>(`${this.baseUrl}/people`, { params });
+  }
+
+  updatePerson(id: number, data: { name?: string; status?: string }): Observable<PersonSummary> {
+    return this.http.put<PersonSummary>(`${this.baseUrl}/people/${id}`, data);
+  }
+
+  getPersonPhotos(personId: number, page: number = 1): Observable<PaginatedResponse<Photo>> {
+    const params = new HttpParams().set('page', page.toString());
+    return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/people/${personId}/photos`, { params });
+  }
+
+  triggerFaceScan(batchSize: number = 100): Observable<{ scanned: number; facesFound: number }> {
+    return this.http.post<{ scanned: number; facesFound: number }>(`${this.baseUrl}/faces/scan`, { batch_size: batchSize });
+  }
+
+  triggerFaceClustering(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/faces/cluster`, {});
   }
 
   getThumbnailUrl(id: number): string {

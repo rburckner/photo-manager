@@ -62,6 +62,12 @@ import { ShortcutsComponent } from '../shortcuts/shortcuts';
               Stats
             </a>
           </li>
+          <li>
+            <a routerLink="/settings" routerLinkActive="active">
+              <span class="icon">&#9881;</span>
+              Settings
+            </a>
+          </li>
         </ul>
       </nav>
       <main class="content">

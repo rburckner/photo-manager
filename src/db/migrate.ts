@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import { getLogger } from '../shared/logger.js';
 import * as m001 from './migrations/001_initial.js';
 import * as m002 from './migrations/002_cleanup_log.js';
+import * as m003 from './migrations/003_faces.js';
 
 interface Migration {
   name: string;
@@ -11,6 +12,7 @@ interface Migration {
 const migrations: Migration[] = [
   m001,
   m002,
+  m003,
 ];
 
 export function runMigrations(db: Database.Database): void {
