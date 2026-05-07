@@ -2,12 +2,13 @@ import { Component, OnInit, OnDestroy, ElementRef, ViewChild, ChangeDetectorRef 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
-import type { TimelineGroup, PhotoSummary } from '../../models/photo.model';
+import { LightboxComponent } from '../lightbox/lightbox';
+import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.model';
 
 @Component({
   selector: 'app-timeline',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LightboxComponent],
   template: `
     <div class="timeline-container">
       <!-- Date range filter bar -->
@@ -104,33 +105,13 @@ import type { TimelineGroup, PhotoSummary } from '../../models/photo.model';
       </div>
     </div>
 
-    <!-- Lightbox -->
     @if (selectedPhoto) {
-      <div class="lightbox" (click)="closeLightbox()">
-        <div class="lightbox-content" (click)="$event.stopPropagation()">
-          @if (selectedPhoto.is_video === 1) {
-            <video
-              [src]="getFileUrl(selectedPhoto.id)"
-              controls
-              autoplay
-              class="lightbox-media"
-            ></video>
-          } @else {
-            <img
-              [src]="getFileUrl(selectedPhoto.id)"
-              [alt]="selectedPhoto.file_name"
-              class="lightbox-media"
-            />
-          }
-          <div class="lightbox-info">
-            <span>{{ selectedPhoto.file_name }}</span>
-            @if (selectedPhoto.date_taken) {
-              <span>{{ selectedPhoto.date_taken | date:'medium' }}</span>
-            }
-          </div>
-          <button class="lightbox-close" (click)="closeLightbox()">&times;</button>
-        </div>
-      </div>
+      <app-lightbox
+        [photo]="selectedPhotoFull"
+        (close)="closeLightbox()"
+        (prev)="navigatePhoto(-1)"
+        (next)="navigatePhoto(1)"
+      />
     }
   `,
   styles: [`
@@ -296,53 +277,6 @@ import type { TimelineGroup, PhotoSummary } from '../../models/photo.model';
     .end-marker { font-size: 0.85rem; padding-bottom: 60px; }
     .empty { font-size: 1rem; color: #555; }
 
-    /* ── Lightbox ── */
-    .lightbox {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.95);
-      z-index: 1000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .lightbox-content {
-      position: relative;
-      max-width: 95vw;
-      max-height: 95vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .lightbox-media {
-      max-width: 95vw;
-      max-height: 85vh;
-      object-fit: contain;
-    }
-
-    .lightbox-info {
-      display: flex;
-      gap: 16px;
-      padding: 12px;
-      color: #aaa;
-      font-size: 0.85rem;
-    }
-
-    .lightbox-close {
-      position: absolute;
-      top: -40px;
-      right: 0;
-      background: none;
-      border: none;
-      color: #fff;
-      font-size: 2rem;
-      cursor: pointer;
-      padding: 4px 12px;
-
-      &:hover { color: #ccc; }
-    }
   `],
 })
 export class TimelineComponent implements OnInit, OnDestroy {
@@ -352,6 +286,7 @@ export class TimelineComponent implements OnInit, OnDestroy {
   loading = false;
   hasMore = true;
   selectedPhoto: PhotoSummary | null = null;
+  selectedPhotoFull!: Photo;
 
   // Date range filter — populated dynamically from collection stats
   minDate = '';
@@ -363,7 +298,6 @@ export class TimelineComponent implements OnInit, OnDestroy {
 
   private currentPage = 0;
   private readonly pageSize = 100;
-  private keyHandler: ((e: KeyboardEvent) => void) | null = null;
 
   constructor(private readonly api: ApiService, private readonly cdr: ChangeDetectorRef) {}
 
@@ -387,19 +321,10 @@ export class TimelineComponent implements OnInit, OnDestroy {
     });
 
     this.loadMore();
-
-    this.keyHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        this.closeLightbox();
-      }
-    };
-    window.addEventListener('keydown', this.keyHandler);
   }
 
   ngOnDestroy(): void {
-    if (this.keyHandler) {
-      window.removeEventListener('keydown', this.keyHandler);
-    }
+    // Lightbox handles its own keyboard events
   }
 
   onFromDateChange(event: Event): void {
@@ -494,18 +419,29 @@ export class TimelineComponent implements OnInit, OnDestroy {
 
   openPhoto(photo: PhotoSummary): void {
     this.selectedPhoto = photo;
+    this.selectedPhotoFull = photo as Photo;
   }
 
   closeLightbox(): void {
     this.selectedPhoto = null;
   }
 
-  getThumbnailUrl(id: number): string {
-    return this.api.getThumbnailUrl(id);
+  navigatePhoto(direction: number): void {
+    if (!this.selectedPhoto) return;
+
+    const allPhotos = this.groups.flatMap((g) => g.photos);
+    const currentIdx = allPhotos.findIndex((p) => p.id === this.selectedPhoto!.id);
+    const newIdx = currentIdx + direction;
+
+    if (newIdx >= 0 && newIdx < allPhotos.length) {
+      const photo = allPhotos[newIdx]!;
+      this.selectedPhoto = photo;
+      this.selectedPhotoFull = photo as Photo;
+    }
   }
 
-  getFileUrl(id: number): string {
-    return this.api.getFileUrl(id);
+  getThumbnailUrl(id: number): string {
+    return this.api.getThumbnailUrl(id);
   }
 
   formatDate(dateStr: string): string {

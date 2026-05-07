@@ -1,12 +1,13 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
+import { LightboxComponent } from '../lightbox/lightbox';
 import type { FolderTreeNode, FolderEntry, Photo } from '../../models/photo.model';
 
 @Component({
   selector: 'app-folders',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LightboxComponent],
   template: `
     <div class="folders-layout">
       <!-- Folder tree -->
@@ -61,27 +62,13 @@ import type { FolderTreeNode, FolderEntry, Photo } from '../../models/photo.mode
       </div>
     </div>
 
-    <!-- Lightbox -->
     @if (selectedPhoto) {
-      <div class="lightbox" (click)="closeLightbox()">
-        <div class="lightbox-content" (click)="$event.stopPropagation()">
-          @if (selectedPhoto.is_video === 1) {
-            <video
-              [src]="getFileUrl(selectedPhoto.id)"
-              controls
-              autoplay
-              class="lightbox-media"
-            ></video>
-          } @else {
-            <img
-              [src]="getFileUrl(selectedPhoto.id)"
-              [alt]="selectedPhoto.file_name"
-              class="lightbox-media"
-            />
-          }
-          <button class="lightbox-close" (click)="closeLightbox()">&times;</button>
-        </div>
-      </div>
+      <app-lightbox
+        [photo]="selectedPhoto"
+        (close)="closeLightbox()"
+        (prev)="navigatePhoto(-1)"
+        (next)="navigatePhoto(1)"
+      />
     }
 
     <!-- Recursive tree node template -->
@@ -284,44 +271,9 @@ import type { FolderTreeNode, FolderEntry, Photo } from '../../models/photo.mode
       color: #555;
     }
 
-    /* ── Lightbox ── */
-    .lightbox {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.95);
-      z-index: 1000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .lightbox-content {
-      position: relative;
-      max-width: 95vw;
-      max-height: 95vh;
-    }
-
-    .lightbox-media {
-      max-width: 95vw;
-      max-height: 90vh;
-      object-fit: contain;
-    }
-
-    .lightbox-close {
-      position: absolute;
-      top: -40px;
-      right: 0;
-      background: none;
-      border: none;
-      color: #fff;
-      font-size: 2rem;
-      cursor: pointer;
-
-      &:hover { color: #ccc; }
-    }
   `],
 })
-export class FoldersComponent implements OnInit {
+export class FoldersComponent implements OnInit, OnDestroy {
   tree: FolderTreeNode[] = [];
   loading = true;
   totalFolders = 0;
@@ -479,12 +431,17 @@ export class FoldersComponent implements OnInit {
     this.selectedPhoto = null;
   }
 
-  getThumbnailUrl(id: number): string {
-    return this.api.getThumbnailUrl(id);
+  navigatePhoto(direction: number): void {
+    if (!this.selectedPhoto) return;
+    const idx = this.photos.findIndex((p) => p.id === this.selectedPhoto!.id);
+    const newIdx = idx + direction;
+    if (newIdx >= 0 && newIdx < this.photos.length) {
+      this.selectedPhoto = this.photos[newIdx]!;
+    }
   }
 
-  getFileUrl(id: number): string {
-    return this.api.getFileUrl(id);
+  getThumbnailUrl(id: number): string {
+    return this.api.getThumbnailUrl(id);
   }
 
   onImageError(event: Event): void {
