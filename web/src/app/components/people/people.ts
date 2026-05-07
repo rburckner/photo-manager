@@ -68,17 +68,17 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
               <button
                 class="btn-status"
                 [class.active]="selectedPersonSummary.status === 'named'"
-                (click)="setStatus('named')"
+                (click)="setStatus(selectedPersonSummary.status === 'named' ? 'unreviewed' : 'named')"
               >Named</button>
               <button
                 class="btn-status btn-ignore"
                 [class.active]="selectedPersonSummary.status === 'ignored'"
-                (click)="setStatus('ignored')"
+                (click)="setStatus(selectedPersonSummary.status === 'ignored' ? 'unreviewed' : 'ignored')"
               >Ignore</button>
               <button
                 class="btn-status btn-hide"
                 [class.active]="selectedPersonSummary.status === 'hidden'"
-                (click)="setStatus('hidden')"
+                (click)="setStatus(selectedPersonSummary.status === 'hidden' ? 'unreviewed' : 'hidden')"
               >Hide</button>
             </div>
           </div>
