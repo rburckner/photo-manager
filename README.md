@@ -16,7 +16,9 @@ Built for a collection of ~120k photos/videos (672GB) on a NAS, served via Docke
 - **TV Mode** — Fullscreen slideshow at `/tv` for smart TVs
 - **DLNA** — Auto-discovered media server for TVs on the network
 - **Visual Similarity** — MobileNet embeddings find photos that look alike
-- **Face Detection** — face-api.js with DBSCAN clustering
+- **Near-Duplicates** — Perceptual hashing (dHash) groups visually-similar photos (resizes, recompresses, etc.)
+- **Face Detection** — face-api.js with DBSCAN clustering, runs in a worker thread
+- **Trash + Undo** — 30-day soft delete with undo toast, configurable retention
 - **Multi-select** — Ctrl+click, Shift+range in every view
 - **Bulk Actions** — Favorite, hide, export zip, set date, add to album
 - **Hidden Photos** — Keep files on disk but hide from all views
@@ -28,6 +30,8 @@ Built for a collection of ~120k photos/videos (672GB) on a NAS, served via Docke
 - **Photo Ingestion** — Drop box directory with auto-import
 - **Sharing** — Expiring share links for photos and albums
 - **Device Pairing** — API key auth via one-time pairing codes
+- **Phone Upload** — Upload from phone PWA with client-side hash dedup, IndexedDB queue, and Background Sync (Chromium)
+- **Folder Watch** — Pick a phone folder once; new photos auto-detected on return visits (Chromium only)
 - **PWA** — Installable, offline thumbnail cache
 - **Dark Theme** — Fully dark UI, mobile responsive
 - **Keyboard Shortcuts** — Press `?` for overlay
@@ -133,7 +137,8 @@ Copy `.env.example` to `.env` and adjust:
 | `PM_SCAN_CONCURRENCY` | `4` | Parallel file operations |
 | `PM_CRON_HOUR` | `2` | Daily re-index hour (0-23) |
 | `PM_LOG_LEVEL` | `info` | Logging level |
-| `PM_ALLOW_REMOTE` | `false` | Allow non-private IPs |
+| `PM_ALLOW_REMOTE` | `false` | Allow non-private IPs (read-only; trash delete still local-only) |
+| `PM_TRASH_RETENTION_DAYS` | `30` | Auto-purge trash after N days (Settings UI overrides) |
 
 ## Ports
 
