@@ -1,9 +1,10 @@
-import { Component, ChangeDetectorRef } from '@angular/core';
+import { Component, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { DeviceAuthService } from '../../services/device-auth.service';
 import { UploadQueueService } from '../../services/upload-queue.service';
+import { FolderWatchService } from '../../services/folder-watch.service';
 import { ToastService } from '../../services/toast.service';
 
 interface FileItem {
@@ -33,6 +34,26 @@ const MAX_PARALLEL = 3;
           Uploading as <strong>{{ deviceAuth.deviceName() }}</strong>.
           Files are hashed locally; duplicates are detected before upload to save bandwidth.
         </p>
+
+        @if (folderWatch.isSupported()) {
+          <div class="watch-controls">
+            @if (folderWatch.hasWatchedFolder()) {
+              <button class="btn-primary" (click)="checkWatchedFolder()" [disabled]="uploading || scanning">
+                {{ scanning ? 'Scanning folder…' : 'Check for new photos' }}
+              </button>
+              <button class="btn-secondary" (click)="changeFolder()" [disabled]="uploading || scanning">
+                Change folder
+              </button>
+            } @else {
+              <button class="btn-primary" (click)="pickFolder()" [disabled]="uploading">
+                Watch a folder for new photos
+              </button>
+              <p class="micro-hint">
+                Or use the manual picker below if you prefer to upload one batch at a time.
+              </p>
+            }
+          </div>
+        }
 
         <label class="file-picker">
           <input
@@ -71,6 +92,17 @@ const MAX_PARALLEL = 3;
     </div>
   `,
   styles: [`
+    .watch-controls {
+      margin-top: 16px;
+      padding: 16px;
+      background: #1e1e1e;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .micro-hint { font-size: 0.75rem; color: #666; margin: 0; }
+
     .upload-container {
       max-width: 640px;
       margin: 0 auto;
@@ -160,18 +192,82 @@ const MAX_PARALLEL = 3;
     }
   `],
 })
-export class UploadComponent {
+export class UploadComponent implements OnInit {
   items: FileItem[] = [];
   uploading = false;
+  scanning = false;
 
   constructor(
     public readonly deviceAuth: DeviceAuthService,
+    public readonly folderWatch: FolderWatchService,
     private readonly api: ApiService,
     private readonly queue: UploadQueueService,
     private readonly router: Router,
     private readonly toast: ToastService,
     private readonly cdr: ChangeDetectorRef,
   ) {}
+
+  ngOnInit(): void {
+    if (!this.deviceAuth.isPaired()) return;
+
+    // First, retry any uploads queued from a prior session (Background Sync
+    // SW also tries, but we drain in-page for browsers that don't support it
+    // and to give immediate visual feedback when the user opens the app).
+    void this.drainPersistentQueue();
+
+    // Then, if a folder is being watched, scan it for newly-added photos.
+    if (this.folderWatch.hasWatchedFolder()) {
+      void this.checkWatchedFolder();
+    }
+  }
+
+  private async drainPersistentQueue(): Promise<void> {
+    const queued = await this.queue.getAll();
+    if (queued.length === 0) return;
+    const queuedItems: FileItem[] = queued.map((q) => ({
+      file: new File([q.blob], q.fileName, { type: q.blob.type }),
+      status: 'pending' as const,
+      hash: q.hash,
+    }));
+    this.items = [...queuedItems, ...this.items];
+    void this.runUploads();
+  }
+
+  async pickFolder(): Promise<void> {
+    const ok = await this.folderWatch.pickFolder();
+    if (ok) {
+      this.toast.success('Folder watched. Scanning for new photos…');
+      await this.checkWatchedFolder();
+    }
+  }
+
+  async changeFolder(): Promise<void> {
+    if (!confirm('Pick a different folder to watch? Already-uploaded photos in the current folder will not be re-uploaded.')) return;
+    await this.folderWatch.clearWatchedFolder();
+    await this.pickFolder();
+  }
+
+  async checkWatchedFolder(): Promise<void> {
+    if (this.scanning || this.uploading) return;
+    this.scanning = true;
+    this.cdr.detectChanges();
+    try {
+      const newFiles = await this.folderWatch.getNewFiles();
+      if (newFiles === null) {
+        this.toast.error('Folder permission was revoked. Pick the folder again.');
+        return;
+      }
+      if (newFiles.length === 0) {
+        this.toast.info('No new photos.');
+        return;
+      }
+      this.items = newFiles.map((file) => ({ file, status: 'pending' as const, hash: '' }));
+      void this.runUploads();
+    } finally {
+      this.scanning = false;
+      this.cdr.detectChanges();
+    }
+  }
 
   get counts(): { imported: number; duplicate: number; error: number } {
     return {
@@ -262,7 +358,8 @@ export class UploadComponent {
         const check = await this.api.checkUploadHash(next.hash, apiKey).toPromise();
         if (check?.exists) {
           next.status = 'duplicate';
-          this.queue.recordSuccess(next.hash);
+          await this.queue.dequeue(next.hash);
+          await this.folderWatch.markFingerprintSeen(next.file);
           this.cdr.detectChanges();
           continue;
         }
@@ -273,21 +370,23 @@ export class UploadComponent {
         const res = await this.api.uploadPhoto(next.file, apiKey).toPromise();
         if (res?.action === 'imported') {
           next.status = 'imported';
-          this.queue.recordSuccess(next.hash);
+          await this.queue.dequeue(next.hash);
+          await this.folderWatch.markFingerprintSeen(next.file);
         } else if (res?.action === 'duplicate') {
           next.status = 'duplicate';
-          this.queue.recordSuccess(next.hash);
+          await this.queue.dequeue(next.hash);
+          await this.folderWatch.markFingerprintSeen(next.file);
         } else if (res?.action === 'skipped') {
           next.status = 'skipped';
         } else {
           next.status = 'error';
           next.message = res?.error ?? 'Upload failed';
-          this.queue.recordFailure(next.hash);
+          await this.queue.enqueue(next.file, next.hash);
         }
       } catch (err) {
         next.status = 'error';
         next.message = err instanceof Error ? err.message : 'Failed';
-        if (next.hash) this.queue.recordFailure(next.hash);
+        if (next.hash) await this.queue.enqueue(next.file, next.hash);
       } finally {
         this.cdr.detectChanges();
       }

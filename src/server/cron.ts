@@ -257,8 +257,10 @@ export function startCronReindex(
       // Run face detection on new photos (small batch to avoid CPU overload)
       if (faceRepo) {
         try {
-          const { runFaceScan, clusterFaces } = await import('../scanner/faces.js');
-          const faceResult = await runFaceScan(photoRepo, faceRepo, config, 50);
+          // Worker-thread version — keeps the main API thread responsive
+          // through the cron's face-detection batch (~10-25s of CPU work).
+          const { runFaceScanWorker, clusterFaces } = await import('../scanner/faces.js');
+          const faceResult = await runFaceScanWorker(photoRepo, faceRepo, config, 50);
           if (faceResult.facesFound > 0) {
             clusterFaces(faceRepo);
             log.info({ scanned: faceResult.scanned, facesFound: faceResult.facesFound }, 'Post-index face scan complete');
