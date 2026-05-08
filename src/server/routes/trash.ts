@@ -124,8 +124,13 @@ export async function trashRoutes(
       const id = parseInt(request.params.id, 10);
       const photo = photoRepo.findById(id);
       if (!photo) return reply.code(404).send({ error: 'Photo not found' });
-      const moved = await trashOne(photo);
-      return { ok: true, moved };
+      try {
+        const moved = await trashOne(photo);
+        return { ok: true, moved };
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        return reply.code(503).send({ ok: false, error: `Could not move file to trash: ${error}` });
+      }
     },
   );
 
@@ -161,8 +166,13 @@ export async function trashRoutes(
       const id = parseInt(request.params.id, 10);
       const photo = photoRepo.findById(id);
       if (!photo) return reply.code(404).send({ error: 'Photo not found' });
-      const restored = await restoreOne(photo);
-      return { ok: true, restored };
+      try {
+        const restored = await restoreOne(photo);
+        return { ok: true, restored };
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        return reply.code(503).send({ ok: false, error: `Could not restore file: ${error}` });
+      }
     },
   );
 

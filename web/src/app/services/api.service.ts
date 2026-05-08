@@ -427,6 +427,17 @@ export class ApiService {
     return `${this.baseUrl}/photos/${id}/video-preview`;
   }
 
+  // Server health (NAS pre-flight)
+  getHealth(): Observable<{
+    status: string;
+    nas: { state: 'rw' | 'ro' | 'missing' | 'unknown'; mediaRoot: string; checkedAt: string };
+  }> {
+    return this.http.get<{
+      status: string;
+      nas: { state: 'rw' | 'ro' | 'missing' | 'unknown'; mediaRoot: string; checkedAt: string };
+    }>('/health');
+  }
+
   // Cron management
   getCronStatus(): Observable<{ enabled: boolean; running: boolean; cronHour: number; nextRun: string | null; lastRun: string | null; lastResult: string | null }> {
     return this.http.get<{ enabled: boolean; running: boolean; cronHour: number; nextRun: string | null; lastRun: string | null; lastResult: string | null }>(`${this.baseUrl}/cron/status`);

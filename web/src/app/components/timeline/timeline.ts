@@ -5,12 +5,13 @@ import { ApiService } from '../../services/api.service';
 import { SelectionService } from '../../services/selection.service';
 import { FilterService } from '../../services/filter.service';
 import { LightboxComponent } from '../lightbox/lightbox';
+import { ThumbSizeSliderComponent } from '../thumb-size-slider/thumb-size-slider';
 import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.model';
 
 @Component({
   selector: 'app-timeline',
   standalone: true,
-  imports: [CommonModule, FormsModule, LightboxComponent],
+  imports: [CommonModule, FormsModule, LightboxComponent, ThumbSizeSliderComponent],
   template: `
     <div class="timeline-container">
       <!-- Date range filter bar -->
@@ -53,6 +54,7 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
               {{ sortOrder === 'desc' ? '&#9660;' : '&#9650;' }}
             </button>
           </div>
+          <app-thumb-size-slider class="header-slider" />
         </div>
 
         <!-- Year quick-select pills -->
@@ -236,6 +238,10 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
       font-size: 1.1rem;
     }
 
+    .header-slider {
+      margin-left: auto;
+    }
+
     .year-pills {
       display: flex;
       gap: 4px;
@@ -289,7 +295,7 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
 
     .photo-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 160px), 1fr));
       gap: 4px;
     }
 
@@ -616,6 +622,7 @@ export class TimelineComponent implements OnInit, OnDestroy {
 
   onImageError(event: Event): void {
     const img = event.target as HTMLImageElement;
-    img.style.display = 'none';
+    if (img.src.endsWith('/ladybug.svg')) return;
+    img.src = '/ladybug.svg';
   }
 }

@@ -12,3 +12,9 @@ data/
 .DS_Store
 Thumbs.db
 @eaDir/
+
+# Editor
+.vscode/
+
+# Default Angular CLI scaffold (project README lives at repo root)
+web/README.md

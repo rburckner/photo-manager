@@ -3,12 +3,13 @@ import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
 import { SelectionService } from '../../services/selection.service';
 import { LightboxComponent } from '../lightbox/lightbox';
+import { ThumbSizeSliderComponent } from '../thumb-size-slider/thumb-size-slider';
 import type { FolderTreeNode, FolderEntry, Photo } from '../../models/photo.model';
 
 @Component({
   selector: 'app-folders',
   standalone: true,
-  imports: [CommonModule, LightboxComponent],
+  imports: [CommonModule, LightboxComponent, ThumbSizeSliderComponent],
   template: `
     <div class="folders-layout">
       <!-- Folder tree -->
@@ -42,6 +43,7 @@ import type { FolderTreeNode, FolderEntry, Photo } from '../../models/photo.mode
                 {{ sortOrder === 'desc' ? '&#9660;' : '&#9650;' }}
               </button>
             </div>
+            <app-thumb-size-slider class="header-slider" />
           </div>
           <div class="photo-grid" (scroll)="onScroll($event)">
             @for (photo of photos; track photo.id) {
@@ -233,6 +235,7 @@ import type { FolderTreeNode, FolderEntry, Photo } from '../../models/photo.mode
     .sort-controls {
       display: flex; align-items: center; gap: 4px; margin-left: auto;
     }
+    .header-slider { margin-left: 12px; }
     .sort-select {
       background: #222; border: 1px solid #444; color: #e0e0e0;
       padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;
@@ -248,7 +251,7 @@ import type { FolderTreeNode, FolderEntry, Photo } from '../../models/photo.mode
       overflow-y: auto;
       padding: 12px;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 160px), 1fr));
       gap: 4px;
       align-content: start;
     }
@@ -524,7 +527,8 @@ export class FoldersComponent implements OnInit, OnDestroy {
 
   onImageError(event: Event): void {
     const img = event.target as HTMLImageElement;
-    img.style.display = 'none';
+    if (img.src.endsWith('/ladybug.svg')) return;
+    img.src = '/ladybug.svg';
   }
 
   onVideoHover(event: Event, photo: { id: number }, enter: boolean): void {

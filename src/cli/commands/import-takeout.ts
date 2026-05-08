@@ -56,14 +56,14 @@ export function createImportTakeoutCommand(): Command {
     });
 }
 
-interface Callbacks {
+export interface Callbacks {
   onImport: () => void;
   onDuplicate: () => void;
   onSkip: () => void;
   onError: () => void;
 }
 
-async function processDirectory(
+export async function processDirectory(
   currentPath: string,
   rootPath: string,
   mediaRoot: string,

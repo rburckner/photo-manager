@@ -3,15 +3,19 @@ import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
 import { SelectionService } from '../../services/selection.service';
 import { LightboxComponent } from '../lightbox/lightbox';
+import { ThumbSizeSliderComponent } from '../thumb-size-slider/thumb-size-slider';
 import type { Photo } from '../../models/photo.model';
 
 @Component({
   selector: 'app-favorites',
   standalone: true,
-  imports: [CommonModule, LightboxComponent],
+  imports: [CommonModule, LightboxComponent, ThumbSizeSliderComponent],
   template: `
     <div class="favorites-container">
-      <h2>Favorites</h2>
+      <div class="favorites-header">
+        <h2>Favorites</h2>
+        <app-thumb-size-slider />
+      </div>
 
       <div class="photo-grid" (scroll)="onScroll($event)">
         @for (photo of photos; track photo.id) {
@@ -42,11 +46,15 @@ import type { Photo } from '../../models/photo.model';
   styles: [`
     .favorites-container {
       height: 100vh; display: flex; flex-direction: column; padding: 20px;
-      h2 { margin: 0 0 16px; color: #ddd; font-size: 1.2rem; }
+      h2 { margin: 0; color: #ddd; font-size: 1.2rem; }
+    }
+    .favorites-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+      app-thumb-size-slider { margin-left: auto; }
     }
     .photo-grid {
       flex: 1; overflow-y: auto;
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 4px; align-content: start;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 160px), 1fr)); gap: 4px; align-content: start;
     }
     .photo-card {
       position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 4px; cursor: pointer; background: #222;
@@ -124,7 +132,11 @@ export class FavoritesComponent implements OnInit {
     const i = this.photos.findIndex((p) => p.id === this.selectedPhoto!.id) + d;
     if (i >= 0 && i < this.photos.length) this.selectedPhoto = this.photos[i]!;
   }
-  onImageError(e: Event): void { (e.target as HTMLImageElement).style.display = 'none'; }
+  onImageError(e: Event): void {
+    const img = e.target as HTMLImageElement;
+    if (img.src.endsWith('/ladybug.svg')) return;
+    img.src = '/ladybug.svg';
+  }
 
   onVideoHover(event: Event, photo: { id: number }, enter: boolean): void {
     const card = (event.target as HTMLElement).closest('.photo-card') as HTMLElement;

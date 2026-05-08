@@ -1,6 +1,7 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
+import { ThumbSizeSliderComponent } from '../thumb-size-slider/thumb-size-slider';
 import type { Photo } from '../../models/photo.model';
 
 interface YearMonth {
@@ -12,16 +13,13 @@ interface YearMonth {
 @Component({
   selector: 'app-fix-dates',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ThumbSizeSliderComponent],
   template: `
     <div class="fix-dates-container">
       <div class="fix-header">
         <h2>Fix Dates</h2>
         <span class="count">{{ photos.length }} photos with bad or missing dates</span>
-        <div class="size-slider">
-          <span class="slider-label">Size</span>
-          <input type="range" min="80" max="300" [value]="thumbSize" (input)="onThumbResize($event)" />
-        </div>
+        <app-thumb-size-slider class="header-slider" />
       </div>
 
       <div class="fix-layout">
@@ -129,19 +127,8 @@ interface YearMonth {
       border-bottom: 1px solid #2a2a2a;
     }
 
-    .size-slider {
-      display: flex;
-      align-items: center;
-      gap: 6px;
+    .header-slider {
       margin-left: auto;
-
-      .slider-label { font-size: 0.75rem; color: #888; }
-
-      input[type=range] {
-        width: 100px;
-        accent-color: #3a7bd5;
-        cursor: pointer;
-      }
     }
 
     .photo-grid {
@@ -149,8 +136,8 @@ interface YearMonth {
       overflow-y: auto;
       padding: 8px;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 120px), 1fr));
-      grid-auto-rows: var(--thumb-size, 120px);
+      grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 160px), 1fr));
+      grid-auto-rows: var(--thumb-size, 160px);
       gap: 4px;
       align-content: start;
       min-height: 0;
@@ -287,7 +274,6 @@ export class FixDatesComponent implements OnInit {
   targetYear = new Date().getFullYear();
   months: YearMonth[] = [];
   actionMessage = '';
-  thumbSize = 120;
 
   private draggedIds: number[] = [];
   private lastClickedId: number | null = null;
@@ -301,14 +287,6 @@ export class FixDatesComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadBadPhotos();
-  }
-
-  onThumbResize(event: Event): void {
-    this.thumbSize = parseInt((event.target as HTMLInputElement).value, 10);
-    const grid = document.querySelector('.photo-grid') as HTMLElement | null;
-    if (grid) {
-      grid.style.setProperty('--thumb-size', `${this.thumbSize}px`);
-    }
   }
 
   loadBadPhotos(): void {
@@ -395,6 +373,8 @@ export class FixDatesComponent implements OnInit {
   }
 
   onImageError(event: Event): void {
-    (event.target as HTMLImageElement).style.display = 'none';
+    const img = event.target as HTMLImageElement;
+    if (img.src.endsWith('/ladybug.svg')) return;
+    img.src = '/ladybug.svg';
   }
 }

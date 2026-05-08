@@ -25,6 +25,7 @@ import { startInboxWatcher } from '../ingestion/index.js';
 import { startCronReindex } from './cron.js';
 import { ScanProgressRepository } from '../db/repositories/scan-progress.repository.js';
 import { isPrivateIp } from './network-guard.js';
+import { checkNasHealth, getNasHealth } from './nas-health.js';
 
 const config = loadConfig();
 const log = initLogger({ logLevel: config.logLevel });
@@ -58,14 +59,35 @@ app.addHook('onRequest', async (request, reply) => {
   }
 });
 
-// Health check
+// Liveness — is the process running? Always 200 once we're listening.
 app.get('/health', async () => {
-  return { status: 'ok' };
+  const nas = getNasHealth();
+  return {
+    status: 'ok',
+    nas: { state: nas.state, mediaRoot: nas.mediaRoot, checkedAt: nas.checkedAt },
+  };
+});
+
+// Readiness — is the service ready to serve? 503 when NAS is missing or read-only.
+app.get('/health/ready', async (_request, reply) => {
+  const nas = getNasHealth();
+  if (nas.state === 'rw') {
+    return { status: 'ready', nas: { state: nas.state, mediaRoot: nas.mediaRoot, checkedAt: nas.checkedAt } };
+  }
+  return reply.code(503).send({
+    status: 'degraded',
+    nas: { state: nas.state, mediaRoot: nas.mediaRoot, checkedAt: nas.checkedAt, error: nas.error },
+  });
 });
 
 async function start(): Promise<void> {
   const db = getDb(config.dbPath);
   runMigrations(db);
+
+  // NAS pre-flight: probe mediaRoot once at boot so /health reflects state immediately.
+  // Re-probe every 5 minutes so a flapping NAS surfaces in the readiness endpoint.
+  await checkNasHealth(config);
+  setInterval(() => { void checkNasHealth(config); }, 5 * 60 * 1000);
 
   const photoRepo = new PhotoRepository(db);
   const albumRepo = new AlbumRepository(db);

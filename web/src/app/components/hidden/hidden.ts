@@ -3,18 +3,20 @@ import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
 import { SelectionService } from '../../services/selection.service';
 import { LightboxComponent } from '../lightbox/lightbox';
+import { ThumbSizeSliderComponent } from '../thumb-size-slider/thumb-size-slider';
 import type { Photo } from '../../models/photo.model';
 
 @Component({
   selector: 'app-hidden',
   standalone: true,
-  imports: [CommonModule, LightboxComponent],
+  imports: [CommonModule, LightboxComponent, ThumbSizeSliderComponent],
   template: `
     <div class="hidden-container">
       <div class="hidden-header">
         <h2>Hidden Photos</h2>
         <span class="count">{{ totalPhotos }} hidden</span>
         <span class="hint">Select photos and use the Unhide button in the toolbar above</span>
+        <app-thumb-size-slider class="header-slider" />
       </div>
 
       <div class="photo-grid" (scroll)="onScroll($event)">
@@ -45,9 +47,10 @@ import type { Photo } from '../../models/photo.model';
   styles: [`
     .hidden-container { height: 100vh; display: flex; flex-direction: column; padding: 20px; }
     .hidden-header {
-      display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
       h2 { margin: 0; font-size: 1.2rem; color: #ddd; }
       .count { font-size: 0.8rem; color: #888; }
+      .header-slider { margin-left: auto; }
     }
     .btn-unhide {
       background: #1a3a1a; border: 1px solid #2a5a2a; color: #8c8;
@@ -56,7 +59,7 @@ import type { Photo } from '../../models/photo.model';
     }
     .photo-grid {
       flex: 1; overflow-y: auto;
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 4px; align-content: start;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 160px), 1fr)); gap: 4px; align-content: start;
     }
     .photo-card {
       position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 4px; cursor: pointer; background: #222;
@@ -135,7 +138,11 @@ export class HiddenComponent implements OnInit, OnDestroy {
     const i = this.photos.findIndex((p) => p.id === this.selectedPhoto!.id) + d;
     if (i >= 0 && i < this.photos.length) this.selectedPhoto = this.photos[i]!;
   }
-  onImageError(e: Event): void { (e.target as HTMLImageElement).style.display = 'none'; }
+  onImageError(e: Event): void {
+    const img = e.target as HTMLImageElement;
+    if (img.src.endsWith('/ladybug.svg')) return;
+    img.src = '/ladybug.svg';
+  }
 
   onVideoHover(event: Event, photo: { id: number }, enter: boolean): void {
     const card = (event.target as HTMLElement).closest('.photo-card') as HTMLElement;

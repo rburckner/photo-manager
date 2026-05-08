@@ -4,12 +4,13 @@ import { ApiService } from '../../services/api.service';
 import { SelectionService } from '../../services/selection.service';
 import { ToastService } from '../../services/toast.service';
 import { LightboxComponent } from '../lightbox/lightbox';
+import { ThumbSizeSliderComponent } from '../thumb-size-slider/thumb-size-slider';
 import type { Photo } from '../../models/photo.model';
 
 @Component({
   selector: 'app-trash',
   standalone: true,
-  imports: [CommonModule, LightboxComponent],
+  imports: [CommonModule, LightboxComponent, ThumbSizeSliderComponent],
   template: `
     <div class="trash-container">
       <div class="trash-header">
@@ -17,6 +18,7 @@ import type { Photo } from '../../models/photo.model';
         <span class="count">{{ totalPhotos }} items · {{ formatSize(totalSize) }}</span>
         <span class="hint">Items are auto-deleted after 30 days</span>
         <div class="header-actions">
+          <app-thumb-size-slider />
           <button class="btn-restore-all" (click)="restoreAll()" [disabled]="totalPhotos === 0 || working">
             Restore all
           </button>
@@ -53,7 +55,7 @@ import type { Photo } from '../../models/photo.model';
       h2 { margin: 0; font-size: 1.2rem; color: #ddd; }
       .count { font-size: 0.8rem; color: #888; }
       .hint { font-size: 0.75rem; color: #666; }
-      .header-actions { margin-left: auto; display: flex; gap: 8px; }
+      .header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
     }
     .btn-restore-all, .btn-empty {
       padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
@@ -69,7 +71,7 @@ import type { Photo } from '../../models/photo.model';
     }
     .photo-grid {
       flex: 1; overflow-y: auto;
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 4px; align-content: start;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 160px), 1fr)); gap: 4px; align-content: start;
     }
     .photo-card {
       position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 4px; cursor: pointer; background: #222;
@@ -174,7 +176,11 @@ export class TrashComponent implements OnInit, OnDestroy {
     const i = this.photos.findIndex((p) => p.id === this.selectedPhoto!.id) + d;
     if (i >= 0 && i < this.photos.length) this.selectedPhoto = this.photos[i]!;
   }
-  onImageError(e: Event): void { (e.target as HTMLImageElement).style.display = 'none'; }
+  onImageError(e: Event): void {
+    const img = e.target as HTMLImageElement;
+    if (img.src.endsWith('/ladybug.svg')) return;
+    img.src = '/ladybug.svg';
+  }
 
   restoreOne(photo: Photo): void {
     this.api.restorePhoto(photo.id).subscribe({

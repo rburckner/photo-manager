@@ -406,5 +406,9 @@ export class DuplicatesComponent implements OnInit, OnDestroy {
     return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
   }
 
-  onImageError(event: Event): void { (event.target as HTMLImageElement).style.display = 'none'; }
+  onImageError(event: Event): void {
+    const img = event.target as HTMLImageElement;
+    if (img.src.endsWith('/ladybug.svg')) return;
+    img.src = '/ladybug.svg';
+  }
 }

@@ -4,12 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { SelectionService } from '../../services/selection.service';
 import { LightboxComponent } from '../lightbox/lightbox';
+import { ThumbSizeSliderComponent } from '../thumb-size-slider/thumb-size-slider';
 import type { Photo } from '../../models/photo.model';
 
 @Component({
   selector: 'app-search',
   standalone: true,
-  imports: [CommonModule, FormsModule, LightboxComponent],
+  imports: [CommonModule, FormsModule, LightboxComponent, ThumbSizeSliderComponent],
   template: `
     <div class="search-container">
       <div class="search-bar">
@@ -30,6 +31,7 @@ import type { Photo } from '../../models/photo.model';
           @if (query) {
             <span class="result-query">for "{{ lastQuery }}"</span>
           }
+          <app-thumb-size-slider />
         </div>
       }
 
@@ -122,16 +124,20 @@ import type { Photo } from '../../models/photo.model';
       margin-bottom: 12px;
       font-size: 0.85rem;
       flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 4px;
 
       .result-count { color: #aaa; }
       .result-query { color: #666; margin-left: 4px; }
+      app-thumb-size-slider { margin-left: auto; }
     }
 
     .photo-grid {
       flex: 1;
       overflow-y: auto;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 160px), 1fr));
       gap: 4px;
       align-content: start;
     }
@@ -278,7 +284,8 @@ export class SearchComponent {
 
   onImageError(event: Event): void {
     const img = event.target as HTMLImageElement;
-    img.style.display = 'none';
+    if (img.src.endsWith('/ladybug.svg')) return;
+    img.src = '/ladybug.svg';
   }
 
   onVideoHover(event: Event, photo: { id: number }, enter: boolean): void {

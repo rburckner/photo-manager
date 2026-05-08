@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="bodyShade2" cx="38%" cy="32%" r="75%">
+      <stop offset="0%" stop-color="#ff8a7a"/>
+      <stop offset="55%" stop-color="#ee3b3b"/>
+      <stop offset="100%" stop-color="#a30f0f"/>
+    </radialGradient>
+    <radialGradient id="headShade2" cx="50%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#3a3a3a"/>
+      <stop offset="100%" stop-color="#0b0b0b"/>
+    </radialGradient>
+    <radialGradient id="leafShade2" cx="30%" cy="30%" r="85%">
+      <stop offset="0%" stop-color="#a8e090"/>
+      <stop offset="100%" stop-color="#3a8c34"/>
+    </radialGradient>
+    <radialGradient id="cheek" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffb0b0" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#ff7a7a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sparkle" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Leaf backdrop -->
+  <path d="M16,212 C36,138 112,62 240,34 C232,132 168,216 56,236 Z"
+        fill="url(#leafShade2)" stroke="#235c1f" stroke-width="2"/>
+  <path d="M28,208 C72,160 134,108 222,52" stroke="#235c1f" stroke-width="2" fill="none" opacity="0.6"/>
+
+  <!-- Soft shadow under bug -->
+  <ellipse cx="128" cy="208" rx="74" ry="9" fill="#000" opacity="0.22"/>
+
+  <!-- Tiny stubby legs -->
+  <g stroke="#111" stroke-width="6" stroke-linecap="round" fill="none">
+    <path d="M82,178 L72,196"/>
+    <path d="M128,186 L128,204"/>
+    <path d="M174,178 L184,196"/>
+    <path d="M62,158 L46,164"/>
+    <path d="M194,158 L210,164"/>
+  </g>
+
+  <!-- Body (rounder, chubbier) -->
+  <ellipse cx="128" cy="138" rx="82" ry="68" fill="url(#bodyShade2)" stroke="#7a0c0c" stroke-width="2"/>
+
+  <!-- Wing split -->
+  <path d="M128,82 Q126,140 128,196" stroke="#3a0606" stroke-width="3" fill="none"/>
+
+  <!-- Spots (fewer, chunkier) -->
+  <g fill="#0a0a0a">
+    <circle cx="92" cy="118" r="12"/>
+    <circle cx="100" cy="166" r="13"/>
+    <circle cx="76" cy="148" r="9"/>
+    <circle cx="164" cy="118" r="12"/>
+    <circle cx="156" cy="166" r="13"/>
+    <circle cx="180" cy="148" r="9"/>
+  </g>
+
+  <!-- Body highlight -->
+  <ellipse cx="96" cy="104" rx="20" ry="11" fill="#fff" opacity="0.28"/>
+  <ellipse cx="80" cy="118" rx="6" ry="3" fill="#fff" opacity="0.5"/>
+
+  <!-- Head (bigger, rounder) -->
+  <ellipse cx="128" cy="78" rx="46" ry="36" fill="url(#headShade2)"/>
+
+  <!-- Cheeks -->
+  <circle cx="98" cy="92" r="11" fill="url(#cheek)"/>
+  <circle cx="158" cy="92" r="11" fill="url(#cheek)"/>
+
+  <!-- Big sparkly eyes -->
+  <ellipse cx="112" cy="78" rx="11" ry="13" fill="#fff"/>
+  <ellipse cx="144" cy="78" rx="11" ry="13" fill="#fff"/>
+  <ellipse cx="112" cy="80" rx="7" ry="9" fill="#1a1a2a"/>
+  <ellipse cx="144" cy="80" rx="7" ry="9" fill="#1a1a2a"/>
+  <!-- Pupil shines -->
+  <circle cx="114" cy="76" r="2.5" fill="#fff"/>
+  <circle cx="146" cy="76" r="2.5" fill="#fff"/>
+  <circle cx="110" cy="83" r="1.4" fill="#fff" opacity="0.9"/>
+  <circle cx="142" cy="83" r="1.4" fill="#fff" opacity="0.9"/>
+
+  <!-- Smile -->
+  <path d="M118,98 Q128,108 138,98" stroke="#ff9aa0" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+  <!-- Antennae with heart bobbles -->
+  <g stroke="#111" stroke-width="3" stroke-linecap="round" fill="none">
+    <path d="M108,50 Q96,32 92,22"/>
+    <path d="M148,50 Q160,32 164,22"/>
+  </g>
+  <g fill="#ff5a6a" stroke="#a01828" stroke-width="1">
+    <path d="M92,22 m-5,0 a3,3 0 0,1 5,-2 a3,3 0 0,1 5,2 q0,4 -5,7 q-5,-3 -5,-7 z"/>
+    <path d="M164,22 m-5,0 a3,3 0 0,1 5,-2 a3,3 0 0,1 5,2 q0,4 -5,7 q-5,-3 -5,-7 z"/>
+  </g>
+
+  <!-- Floating sparkles -->
+  <circle cx="40" cy="60" r="6" fill="url(#sparkle)"/>
+  <circle cx="220" cy="100" r="5" fill="url(#sparkle)"/>
+  <circle cx="210" cy="200" r="4" fill="url(#sparkle)"/>
+</svg>

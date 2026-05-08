@@ -12,6 +12,19 @@ import type { CollectionStats } from '../../models/photo.model';
     <div class="settings-container">
       <h2>Settings</h2>
 
+      <!-- ═══════ NAS HEALTH ═══════ -->
+      @if (health) {
+        <div class="nas-health" [class]="'state-' + health.nas.state">
+          <span class="nas-dot"></span>
+          <span class="nas-label">NAS:</span>
+          <span class="nas-state">{{ nasStateLabel(health.nas.state) }}</span>
+          <span class="nas-path">{{ health.nas.mediaRoot }}</span>
+          @if (health.nas.state !== 'rw' && health.nas.state !== 'unknown') {
+            <span class="nas-hint">Photos may not load until this is fixed.</span>
+          }
+        </div>
+      }
+
       <!-- ═══════ PROCESSING JOBS ═══════ -->
       <div class="section-group">
         <h3 class="group-title">Processing Jobs</h3>
@@ -615,6 +628,70 @@ import type { CollectionStats } from '../../models/photo.model';
       font-size: 0.85rem;
       color: #aaa;
     }
+
+    .nas-health {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      margin-bottom: 18px;
+      font-size: 0.85rem;
+      border: 1px solid;
+      flex-wrap: wrap;
+
+      .nas-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .nas-label {
+        color: #888;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.05em;
+      }
+      .nas-state {
+        font-weight: 500;
+      }
+      .nas-path {
+        color: #666;
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        font-size: 0.75rem;
+        word-break: break-all;
+      }
+      .nas-hint {
+        color: #c88;
+        font-size: 0.75rem;
+        margin-left: auto;
+      }
+
+      &.state-rw {
+        background: #0f2118;
+        border-color: #1f4a30;
+        .nas-dot { background: #4a4; box-shadow: 0 0 6px #4a4; }
+        .nas-state { color: #8c8; }
+      }
+      &.state-ro {
+        background: #2a1f0f;
+        border-color: #5a4520;
+        .nas-dot { background: #d80; box-shadow: 0 0 6px #d80; }
+        .nas-state { color: #ec8; }
+      }
+      &.state-missing {
+        background: #2a0f0f;
+        border-color: #5a1f1f;
+        .nas-dot { background: #d44; box-shadow: 0 0 6px #d44; }
+        .nas-state { color: #f88; }
+      }
+      &.state-unknown {
+        background: #1a1a1a;
+        border-color: #333;
+        .nas-dot { background: #666; }
+        .nas-state { color: #888; }
+      }
+    }
   `],
 })
 export class SettingsComponent implements OnInit {
@@ -646,6 +723,8 @@ export class SettingsComponent implements OnInit {
   pairingCode = '';
   devices: Array<{ id: number; name: string; last_seen: string | null }> = [];
 
+  health: { status: string; nas: { state: 'rw' | 'ro' | 'missing' | 'unknown'; mediaRoot: string; checkedAt: string } } | null = null;
+
   constructor(
     private readonly api: ApiService,
     private readonly settingsService: SettingsService,
@@ -669,6 +748,19 @@ export class SettingsComponent implements OnInit {
       if (tv) this.tvAlbumId = tv.id;
       this.cdr.detectChanges();
     }});
+    this.api.getHealth().subscribe({
+      next: (h) => { this.health = h; this.cdr.detectChanges(); },
+      error: () => { /* /health unreachable — leave chip hidden */ },
+    });
+  }
+
+  nasStateLabel(state: 'rw' | 'ro' | 'missing' | 'unknown'): string {
+    switch (state) {
+      case 'rw': return 'Connected (read/write)';
+      case 'ro': return 'Read-only — uploads and trash will fail';
+      case 'missing': return 'Not mounted — photos will not load';
+      case 'unknown': return 'Checking…';
+    }
   }
 
   toggleSetting(key: string, event: Event): void {

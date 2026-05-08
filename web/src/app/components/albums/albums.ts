@@ -4,12 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 import { SelectionService } from '../../services/selection.service';
 import { LightboxComponent } from '../lightbox/lightbox';
+import { ThumbSizeSliderComponent } from '../thumb-size-slider/thumb-size-slider';
 import type { Album, Photo } from '../../models/photo.model';
 
 @Component({
   selector: 'app-albums',
   standalone: true,
-  imports: [CommonModule, FormsModule, LightboxComponent],
+  imports: [CommonModule, FormsModule, LightboxComponent, ThumbSizeSliderComponent],
   template: `
     <div class="albums-container">
 
@@ -62,6 +63,7 @@ import type { Album, Photo } from '../../models/photo.model';
             <span class="album-count">{{ albumPhotoTotal }} items</span>
           </div>
           <div class="album-actions">
+            <app-thumb-size-slider />
             <button class="btn-action" (click)="showEditDialog = true">Edit</button>
             <button class="btn-action btn-danger" (click)="confirmDeleteAlbum()">Delete</button>
           </div>
@@ -212,6 +214,7 @@ import type { Album, Photo } from '../../models/photo.model';
     .album-actions {
       display: flex;
       gap: 8px;
+      align-items: center;
     }
 
     /* ── Album grid ── */
@@ -287,7 +290,7 @@ import type { Album, Photo } from '../../models/photo.model';
     /* ── Photo grid ── */
     .photo-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 160px), 1fr));
       gap: 4px;
     }
 
@@ -570,7 +573,8 @@ export class AlbumsComponent implements OnInit {
 
   onImageError(event: Event): void {
     const img = event.target as HTMLImageElement;
-    img.style.display = 'none';
+    if (img.src.endsWith('/ladybug.svg')) return;
+    img.src = '/ladybug.svg';
   }
 
   onVideoHover(event: Event, photo: { id: number }, enter: boolean): void {

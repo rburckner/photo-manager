@@ -258,7 +258,11 @@ export class TagsComponent implements OnInit {
     const i = this.tagPhotos.findIndex((p) => p.id === this.selectedPhoto!.id) + d;
     if (i >= 0 && i < this.tagPhotos.length) this.selectedPhoto = this.tagPhotos[i]!;
   }
-  onImageError(e: Event): void { (e.target as HTMLImageElement).style.display = 'none'; }
+  onImageError(e: Event): void {
+    const img = e.target as HTMLImageElement;
+    if (img.src.endsWith('/ladybug.svg')) return;
+    img.src = '/ladybug.svg';
+  }
 
   onVideoHover(event: Event, photo: { id: number }, enter: boolean): void {
     const card = (event.target as HTMLElement).closest('.photo-card') as HTMLElement;
