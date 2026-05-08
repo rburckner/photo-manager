@@ -379,7 +379,6 @@ import type { CollectionStats } from '../../models/photo.model';
       height: 100vh;
       overflow-y: auto;
       padding: 24px;
-      max-width: 700px;
 
       h2 { margin: 0 0 24px; color: #ddd; font-size: 1.2rem; }
     }
