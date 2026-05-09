@@ -77,14 +77,16 @@ export function clusterFaces(
 
 /**
  * Run face detection in a worker thread so the API stays responsive while
- * face-api.js does its CPU-heavy work. The worker reads photos from disk,
- * runs detection, and posts results back to be persisted on the main thread.
+ * @vladmandic/face-api (atop tfjs-node) does its CPU-heavy work. The worker
+ * reads photos from disk, runs detection, and posts results back to be
+ * persisted on the main thread.
  */
 export async function runFaceScanWorker(
   photoRepo: PhotoRepository,
   faceRepo: FaceRepository,
   config: AppConfig,
   batchSize: number = 50,
+  sweepAll: boolean = false,
 ): Promise<{ scanned: number; facesFound: number; cancelled: boolean }> {
   const log = getLogger();
   const { Worker } = await import('node:worker_threads');
@@ -96,14 +98,18 @@ export async function runFaceScanWorker(
   faceScanRunning = true;
   faceScanCancelled = false;
 
-  const photoIds = faceRepo.getUnscannedPhotoIds(batchSize);
+  let photoIds = faceRepo.getUnscannedPhotoIds(batchSize);
   if (photoIds.length === 0) {
     faceScanRunning = false;
     return { scanned: 0, facesFound: 0, cancelled: false };
   }
 
   const modelsDir = join(config.thumbnailDir, '..', 'face-models');
-  const workerPath = join(import.meta.dirname, 'face-worker.js');
+  // In dev (tsx watch) we run TypeScript directly, so the worker file is
+  // face-worker.ts and Node needs the tsx loader registered. In production
+  // (compiled) the worker is face-worker.js.
+  const isDev = import.meta.url.endsWith('.ts');
+  const workerPath = join(import.meta.dirname, isDev ? 'face-worker.ts' : 'face-worker.js');
 
   return new Promise((resolve) => {
     let scanned = 0;
@@ -117,17 +123,38 @@ export async function runFaceScanWorker(
         mediaRoot: config.mediaRoot,
         dbPath: config.dbPath,
       },
+      // Register tsx in dev so the worker can load the .ts file
+      ...(isDev ? { execArgv: ['--import', 'tsx'] } : {}),
     });
 
+    function shutdown(): void {
+      worker.terminate().catch(() => {});
+      faceScanRunning = false;
+      const cancelled = faceScanCancelled;
+      faceScanCancelled = false;
+      log.info({ scanned, facesFound, cancelled, sweepAll }, 'Worker face scan complete');
+      resolve({ scanned, facesFound, cancelled });
+    }
+
     function sendNext(): void {
-      if (faceScanCancelled || currentIdx >= photoIds.length) {
-        worker.terminate().catch(() => {});
-        faceScanRunning = false;
-        const cancelled = faceScanCancelled;
-        faceScanCancelled = false;
-        log.info({ scanned, facesFound, cancelled }, 'Worker face scan complete');
-        resolve({ scanned, facesFound, cancelled });
+      if (faceScanCancelled) {
+        shutdown();
         return;
+      }
+
+      // Current batch exhausted — either stop (drip mode) or refetch the next
+      // batch and continue (sweep mode).
+      if (currentIdx >= photoIds.length) {
+        if (!sweepAll) {
+          shutdown();
+          return;
+        }
+        photoIds = faceRepo.getUnscannedPhotoIds(batchSize);
+        currentIdx = 0;
+        if (photoIds.length === 0) {
+          shutdown();
+          return;
+        }
       }
 
       const id = photoIds[currentIdx]!;
@@ -172,9 +199,7 @@ export async function runFaceScanWorker(
         sendNext();
       } else if (msg.type === 'error') {
         log.warn('Face worker error — falling back to main thread');
-        worker.terminate().catch(() => {});
-        faceScanRunning = false;
-        resolve({ scanned, facesFound, cancelled: false });
+        shutdown();
       }
     });
 

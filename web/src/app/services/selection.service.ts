@@ -25,6 +25,34 @@ export class SelectionService {
     this.refreshSubject.next();
   }
 
+  // Tracks the currently-open album in the Albums detail view. The selection
+  // bar reads this to decide whether to show the "Remove from Album" button.
+  // null when not inside any album detail view.
+  private readonly currentAlbumIdSubject = new BehaviorSubject<number | null>(null);
+  readonly currentAlbumId$ = this.currentAlbumIdSubject.asObservable();
+
+  setCurrentAlbumId(albumId: number | null): void {
+    this.currentAlbumIdSubject.next(albumId);
+  }
+
+  get currentAlbumId(): number | null {
+    return this.currentAlbumIdSubject.value;
+  }
+
+  // Tracks the currently-open person on /people. Selection bar reads this to
+  // show the "Reassign to..." action and lightbox shows the per-photo
+  // reassign button. null when not inside a person detail view.
+  private readonly currentPersonIdSubject = new BehaviorSubject<number | null>(null);
+  readonly currentPersonId$ = this.currentPersonIdSubject.asObservable();
+
+  setCurrentPersonId(personId: number | null): void {
+    this.currentPersonIdSubject.next(personId);
+  }
+
+  get currentPersonId(): number | null {
+    return this.currentPersonIdSubject.value;
+  }
+
   get isSelecting(): boolean {
     return this.isSelectingSignal();
   }

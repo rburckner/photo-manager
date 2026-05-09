@@ -17,7 +17,7 @@ Built for a collection of ~120k photos/videos (672GB) on a NAS, served via Docke
 - **DLNA** — Auto-discovered media server for TVs on the network
 - **Visual Similarity** — MobileNet embeddings find photos that look alike
 - **Near-Duplicates** — Perceptual hashing (dHash) groups visually-similar photos (resizes, recompresses, etc.)
-- **Face Detection** — face-api.js with DBSCAN clustering, runs in a worker thread
+- **Face Detection** — `@vladmandic/face-api` + tfjs-node C++ backend, DBSCAN clustering, runs in a worker thread
 - **Trash + Undo** — 30-day soft delete with undo toast, configurable retention
 - **Multi-select** — Ctrl+click, Shift+range in every view
 - **Bulk Actions** — Favorite, hide, export zip, set date, add to album
@@ -112,12 +112,12 @@ Docker Container (port 80)
 
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js 22+, TypeScript strict |
+| Runtime | Node.js **22 LTS** (Node 24 isn't supported — tfjs-node native bindings don't load), TypeScript strict |
 | Backend | Fastify 5, better-sqlite3 |
 | Frontend | Angular 21, standalone components |
-| Images | sharp (HEIC via fallback), exif-reader |
+| Images | sharp (HEIC via libheif), exif-reader |
 | Video | ffmpeg (thumbnails + probe) |
-| Faces | face-api.js, TensorFlow.js |
+| Faces | `@vladmandic/face-api` + `@tensorflow/tfjs-node@4` (C++ backend) |
 | Similarity | MobileNet v2 embeddings |
 | Maps | Leaflet + OpenStreetMap |
 | TV | DLNA/UPnP (node-ssdp) |

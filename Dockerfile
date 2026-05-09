@@ -20,11 +20,14 @@ RUN npx tsc -p tsconfig.build.json
 # ── Stage 3: Production image ──
 FROM node:22-bookworm-slim
 
-# Install runtime dependencies for sharp (HEIC/HEIF support) and ffmpeg
+# Runtime libraries.
+# Sharp ships its own libvips via @img/sharp-libvips-* prebuilts; no apt
+# libvips needed. HEIC HEVC decode is handled by `heic-decode` (a WASM
+# libheif port) inside our scanner/heic-fallback.ts — pure-JS, no system
+# codecs required, identical behavior on amd64 and arm64.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libvips-dev \
-    libheif-dev \
     ffmpeg \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

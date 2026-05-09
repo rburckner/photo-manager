@@ -1,13 +1,15 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { SelectionService } from '../../services/selection.service';
 import { ToastService } from '../../services/toast.service';
-import type { Photo, Album } from '../../models/photo.model';
+import type { Photo, Album, PersonSummary } from '../../models/photo.model';
 
 @Component({
   selector: 'app-lightbox',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="lightbox-overlay" (click)="close.emit()">
       <div class="lightbox-container" (click)="$event.stopPropagation()">
@@ -144,6 +146,14 @@ import type { Photo, Album } from '../../models/photo.model';
         <a class="btn-download" [href]="api.getFileUrl(photo.id)" download>
           &#8615;
         </a>
+        @if (activePersonId) {
+          <button
+            class="btn-reassign"
+            [class.active]="showReassignPicker"
+            (click)="toggleReassignPicker()"
+            title="Reassign this person's face in this photo"
+          >&#8644;</button>
+        }
         <button class="btn-delete" (click)="deletePhoto()" title="Move to trash">
           &#128465;
         </button>
@@ -169,6 +179,33 @@ import type { Photo, Album } from '../../models/photo.model';
                 }
               </button>
             }
+          </div>
+        }
+
+        <!-- Reassign-face picker (only when in person context) -->
+        @if (showReassignPicker && activePersonId) {
+          <div class="album-picker reassign-picker">
+            <div class="picker-header">Reassign face in this photo</div>
+            <div class="picker-section">Existing people</div>
+            @for (p of getReassignTargets(); track p.id) {
+              <button class="picker-item" (click)="reassignToExisting(p.id, p.name)">
+                <span class="picker-name">{{ p.name ?? 'Unknown' }} ({{ p.photo_count }})</span>
+              </button>
+            }
+            @if (getReassignTargets().length === 0) {
+              <div class="picker-empty">No other people</div>
+            }
+            <div class="picker-section">New person</div>
+            <div class="reassign-new-row">
+              <input
+                type="text"
+                class="reassign-new-input"
+                placeholder="Name (optional)"
+                [(ngModel)]="newReassignName"
+                (keydown.enter)="splitToNewPerson()"
+              />
+              <button class="reassign-new-btn" (click)="splitToNewPerson()">Create &amp; move</button>
+            </div>
           </div>
         }
 
@@ -337,7 +374,7 @@ import type { Photo, Album } from '../../models/photo.model';
     }
 
     /* ── Buttons ── */
-    .btn-close, .btn-fav, .btn-info, .btn-album, .btn-download, .btn-delete, .btn-prev, .btn-next {
+    .btn-close, .btn-fav, .btn-info, .btn-album, .btn-download, .btn-delete, .btn-reassign, .btn-prev, .btn-next {
       position: absolute;
       background: rgba(0, 0, 0, 0.5);
       border: none;
@@ -437,6 +474,17 @@ import type { Photo, Album } from '../../models/photo.model';
       &:hover { background: rgba(255, 100, 100, 0.2); }
     }
 
+    .btn-reassign {
+      top: 8px;
+      right: 360px;
+      width: 36px;
+      height: 36px;
+      font-size: 1.2rem;
+      z-index: 10;
+
+      &.active { background: rgba(255, 255, 255, 0.2); }
+    }
+
     .album-picker {
       position: absolute;
       top: 50px;
@@ -490,6 +538,57 @@ import type { Photo, Album } from '../../models/photo.model';
     .picker-check {
       color: #6cacf0;
       font-size: 0.9rem;
+    }
+
+    /* Reassign picker reuses .album-picker but anchors at the reassign btn */
+    .reassign-picker {
+      right: 360px;
+      width: 260px;
+    }
+
+    .picker-section {
+      padding: 6px 14px 4px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #777;
+      background: #1a1a1a;
+      border-top: 1px solid #2a2a2a;
+
+      &:first-child { border-top: none; }
+    }
+
+    .reassign-new-row {
+      display: flex;
+      gap: 4px;
+      padding: 8px 10px 10px;
+      align-items: center;
+    }
+
+    .reassign-new-input {
+      flex: 1;
+      min-width: 0;
+      padding: 6px 8px;
+      background: #1a1a1a;
+      border: 1px solid #444;
+      color: #ddd;
+      border-radius: 4px;
+      font-size: 0.8rem;
+
+      &:focus { outline: none; border-color: #666; }
+    }
+
+    .reassign-new-btn {
+      padding: 6px 10px;
+      background: #2a3a5a;
+      border: 1px solid #3a5a8a;
+      color: #cde;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      white-space: nowrap;
+
+      &:hover { background: #3a5a8a; }
     }
 
     /* ── Similar panel ── */
@@ -621,10 +720,18 @@ export class LightboxComponent implements OnInit, OnDestroy {
   similarSelected = new Set<number>();
   hasSamePerson = false;
 
+  // Per-photo face reassignment (only meaningful inside /people detail view)
+  activePersonId: number | null = null;
+  showReassignPicker = false;
+  peopleList: PersonSummary[] = [];
+  newReassignName = '';
+
   private keyHandler: ((e: KeyboardEvent) => void) | null = null;
+  private personIdSub: { unsubscribe(): void } | null = null;
 
   constructor(
     public readonly api: ApiService,
+    private readonly selection: SelectionService,
     private readonly toast: ToastService,
     private readonly cdr: ChangeDetectorRef,
   ) {}
@@ -643,12 +750,25 @@ export class LightboxComponent implements OnInit, OnDestroy {
       }
     };
     window.addEventListener('keydown', this.keyHandler);
+
+    // Pick up the current person context if the lightbox was opened from
+    // /people. The reassign button stays hidden for non-person contexts.
+    this.personIdSub = this.selection.currentPersonId$.subscribe((id) => {
+      this.activePersonId = id;
+      if (id !== null && this.peopleList.length === 0) {
+        this.api.getPeople(true).subscribe({
+          next: (people) => { this.peopleList = people; this.cdr.detectChanges(); },
+        });
+      }
+      this.cdr.detectChanges();
+    });
   }
 
   ngOnDestroy(): void {
     if (this.keyHandler) {
       window.removeEventListener('keydown', this.keyHandler);
     }
+    this.personIdSub?.unsubscribe();
   }
 
   private loadFullPhoto(): void {
@@ -844,6 +964,47 @@ export class LightboxComponent implements OnInit, OnDestroy {
         this.addedAlbumIds.add(album.id);
         this.cdr.detectChanges();
       },
+    });
+  }
+
+  toggleReassignPicker(): void {
+    this.showReassignPicker = !this.showReassignPicker;
+    this.newReassignName = '';
+  }
+
+  /** Other people we can reassign this face to (excludes the active person). */
+  getReassignTargets(): PersonSummary[] {
+    if (!this.activePersonId) return [];
+    return this.peopleList.filter((p) => p.id !== this.activePersonId);
+  }
+
+  reassignToExisting(toPersonId: number, toName: string | null): void {
+    if (!this.activePersonId) return;
+    this.api.reassignFaces(this.activePersonId, toPersonId, [this.photo.id]).subscribe({
+      next: (res) => {
+        this.showReassignPicker = false;
+        this.toast.success(`Reassigned ${res.reassigned} face(s) to "${toName ?? 'Unknown'}"`);
+        // Trigger a refresh so the /people grid drops this photo (it no longer belongs)
+        this.selection.notifyRefresh();
+        // Auto-advance — the current photo is gone from the active person's set
+        this.next.emit();
+      },
+      error: () => this.toast.error('Reassign failed'),
+    });
+  }
+
+  splitToNewPerson(): void {
+    if (!this.activePersonId) return;
+    const name = this.newReassignName.trim() || null;
+    this.api.splitFacesToNewPerson(this.activePersonId, [this.photo.id], name).subscribe({
+      next: (res) => {
+        this.showReassignPicker = false;
+        this.newReassignName = '';
+        this.toast.success(`Split ${res.reassigned} face(s) to ${name ? `"${name}"` : 'a new person'}`);
+        this.selection.notifyRefresh();
+        this.next.emit();
+      },
+      error: () => this.toast.error('Split failed'),
     });
   }
 

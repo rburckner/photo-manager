@@ -1,0 +1,42 @@
+# Development image: API only (Angular ng serve runs on the host).
+# Source is bind-mounted at /app, node_modules stays from the image (anonymous
+# volume in compose preserves it past the bind mount).
+#
+# Native deps (sharp, better-sqlite3, canvas, tfjs-node) install via prebuilds
+# on amd64 Node 22. Build tools (python3, make, g++) are kept available so any
+# module that falls back to source compile can succeed without re-pulling the
+# image. ffmpeg is required at runtime by fluent-ffmpeg for video probe/thumbs.
+
+FROM node:22-bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    wget \
+    python3 \
+    make \
+    g++ \
+    pkg-config \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libjpeg-dev \
+    libgif-dev \
+    librsvg2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+ENV PM_MEDIA_ROOT=/photos \
+    PM_DB_PATH=/data/photos.db \
+    PM_THUMBNAIL_DIR=/data/thumbnails \
+    PM_DROPBOX_DIR=/inbox \
+    PM_PORT=3000 \
+    PM_HOST=0.0.0.0 \
+    PM_LOG_LEVEL=info \
+    NODE_ENV=development
+
+EXPOSE 3000 8200 1900/udp
+
+CMD ["npx", "tsx", "watch", "src/server/index.ts"]

@@ -1,33 +1,65 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { ApiService } from '../../services/api.service';
 import { SelectionService } from '../../services/selection.service';
 import { LightboxComponent } from '../lightbox/lightbox';
 import { ThumbSizeSliderComponent } from '../thumb-size-slider/thumb-size-slider';
-import type { Album, Photo } from '../../models/photo.model';
+import type { Album, Photo, PersonSummary } from '../../models/photo.model';
 
 @Component({
   selector: 'app-albums',
   standalone: true,
-  imports: [CommonModule, FormsModule, LightboxComponent, ThumbSizeSliderComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LightboxComponent, ThumbSizeSliderComponent],
   template: `
     <div class="albums-container">
 
-      <!-- Album list view -->
-      @if (!selectedAlbum) {
+      <!-- List view: people + albums -->
+      @if (!selectedAlbum && !selectedPerson) {
         <div class="albums-header">
           <h2>Albums</h2>
           <button class="btn-create" (click)="showCreateDialog = true">+ New Album</button>
         </div>
 
+        <!-- People (auto-generated, virtual) -->
+        @if (people.length > 0) {
+          <div class="section-heading">
+            People
+            <span class="section-hint">automatically generated from face detection</span>
+          </div>
+          <div class="album-grid">
+            @for (p of people; track p.id) {
+              <div class="album-card person-card" (click)="openPerson(p)">
+                <div class="album-cover person-cover">
+                  @if (p.representative_face_id) {
+                    <img
+                      [src]="getFaceCropUrl(p.representative_face_id)"
+                      [alt]="p.name ?? 'Unknown'"
+                      (error)="onImageError($event)"
+                    />
+                  } @else {
+                    <div class="no-cover">&#128100;</div>
+                  }
+                </div>
+                <div class="album-info">
+                  <div class="album-name">{{ p.name ?? 'Unnamed person' }}</div>
+                  <div class="album-count">{{ p.photo_count }} items</div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Manual albums -->
+        <div class="section-heading">Your Albums</div>
         @if (albums.length === 0 && !loading) {
           <div class="empty-state">
             <p>No albums yet</p>
             <button class="btn-create" (click)="showCreateDialog = true">Create your first album</button>
           </div>
         }
-
         <div class="album-grid">
           @for (album of albums; track album.id) {
             <div class="album-card" (click)="openAlbum(album)">
@@ -47,6 +79,51 @@ import type { Album, Photo } from '../../models/photo.model';
                 <div class="album-count">{{ album.photo_count }} items</div>
               </div>
             </div>
+          }
+        </div>
+      }
+
+      <!-- Person detail view (virtual album) -->
+      @if (selectedPerson) {
+        <div class="album-detail-header">
+          <button class="btn-back" (click)="closePerson()">&larr;</button>
+          <div class="album-title">
+            <h2>{{ selectedPerson.name ?? 'Unnamed person' }}</h2>
+            <p class="album-desc">Virtual album — automatically synced with face detection</p>
+            <span class="album-count">{{ personPhotoTotal }} items</span>
+          </div>
+          <div class="album-actions">
+            <app-thumb-size-slider />
+            <a class="btn-action" routerLink="/people" (click)="closePerson()">Manage on People page</a>
+          </div>
+        </div>
+
+        <div class="photo-grid" (scroll)="onPersonScroll($event)">
+          @for (photo of personPhotos; track photo.id) {
+            <div
+              class="photo-card"
+              [class.selectable]="selection.isSelectingSignal()"
+              [class.selected]="selection.selectedIdsSignal().has(photo.id)"
+              (click)="onPersonPhotoClick(photo, $event)"
+              (mouseenter)="photo.is_video === 1 ? onVideoHover($event, photo, true) : null"
+              (mouseleave)="photo.is_video === 1 ? onVideoHover($event, photo, false) : null"
+            >
+              @if (selection.isSelectingSignal()) {
+                <div class="select-check">&#10003;</div>
+              }
+              <img
+                [src]="api.getThumbnailUrl(photo.id)"
+                [alt]="photo.file_name"
+                loading="lazy"
+                (error)="onImageError($event)"
+              />
+              @if (photo.is_video === 1) {
+                <div class="video-badge">&#9654;</div>
+              }
+            </div>
+          }
+          @if (personPhotos.length === 0 && !loadingPersonPhotos) {
+            <div class="empty-album">No photos yet</div>
           }
         </div>
       }
@@ -217,11 +294,32 @@ import type { Album, Photo } from '../../models/photo.model';
       align-items: center;
     }
 
+    /* ── Section heading (People / Your Albums) ── */
+    .section-heading {
+      margin: 8px 0 12px;
+      padding: 0 4px;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #888;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .section-hint {
+      font-size: 0.7rem;
+      color: #555;
+      text-transform: none;
+      letter-spacing: 0;
+      font-style: italic;
+    }
+
     /* ── Album grid ── */
     .album-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 16px;
+      margin-bottom: 28px;
     }
 
     .album-card {
@@ -234,6 +332,22 @@ import type { Album, Photo } from '../../models/photo.model';
       &:hover {
         transform: translateY(-2px);
         background: #2a2a2a;
+      }
+    }
+
+    /* Person card visual differentiation: subtle border-tone tweak so users
+       see at a glance which cards are auto-people vs hand-curated albums. */
+    .person-card {
+      background: #1f2429;
+      &:hover { background: #262d34; }
+    }
+    .person-cover {
+      background: #15181c;
+      img {
+        /* Slight zoom-out so the face crop reads as a portrait inside the
+           4:3 cover box rather than being awkwardly cropped. */
+        object-fit: cover;
+        object-position: center top;
       }
     }
 
@@ -406,9 +520,11 @@ import type { Album, Photo } from '../../models/photo.model';
     }
   `],
 })
-export class AlbumsComponent implements OnInit {
+export class AlbumsComponent implements OnInit, OnDestroy {
   albums: Album[] = [];
   loading = true;
+
+  private subs: Subscription[] = [];
 
   selectedAlbum: Album | null = null;
   albumPhotos: Photo[] = [];
@@ -416,6 +532,18 @@ export class AlbumsComponent implements OnInit {
   albumPhotoTotal = 0;
   albumPhotoPage = 1;
   albumHasMore = true;
+
+  // Virtual person-albums — auto-generated from face detection results.
+  // No DB rows; clicking a card loads photos via api.getPersonPhotos.
+  people: PersonSummary[] = [];
+  selectedPerson: PersonSummary | null = null;
+  personPhotos: Photo[] = [];
+  loadingPersonPhotos = false;
+  personPhotoTotal = 0;
+  personPhotoPage = 1;
+  personHasMore = true;
+
+  private lastClickedPersonPhotoId: number | null = null;
 
   selectedPhoto: Photo | null = null;
 
@@ -434,6 +562,116 @@ export class AlbumsComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadAlbums();
+    this.loadPeople();
+
+    // Reload photos when a bulk action (e.g., remove from album, reassign
+    // face) fires from the selection bar. Reloads whichever detail view is
+    // open AND refreshes both card lists so photo counts stay current.
+    this.subs.push(
+      this.selection.refresh$.subscribe(() => {
+        if (this.selectedAlbum) {
+          this.albumPhotos = [];
+          this.albumPhotoPage = 1;
+          this.albumHasMore = true;
+          this.loadAlbumPhotos();
+        }
+        if (this.selectedPerson) {
+          this.personPhotos = [];
+          this.personPhotoPage = 1;
+          this.personHasMore = true;
+          this.loadPersonPhotos();
+        }
+        this.loadAlbums();
+        this.loadPeople();
+      }),
+    );
+  }
+
+  ngOnDestroy(): void {
+    this.subs.forEach((s) => s.unsubscribe());
+    // Defensive: clear both context flags so the selection bar's reassign
+    // / remove-from-album actions don't linger after navigating away.
+    this.selection.setCurrentAlbumId(null);
+    this.selection.setCurrentPersonId(null);
+  }
+
+  loadPeople(): void {
+    this.api.getPeople(false).subscribe({
+      next: (people) => {
+        // Only show named or unreviewed people with at least one photo.
+        // Hidden people are excluded (their photos are filtered everywhere
+        // anyway); ignored already filtered out by getPeople(false).
+        this.people = people
+          .filter((p) => p.status !== 'hidden' && p.photo_count > 0)
+          .sort((a, b) => b.photo_count - a.photo_count);
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  openPerson(person: PersonSummary): void {
+    this.selectedPerson = person;
+    this.personPhotos = [];
+    this.personPhotoPage = 1;
+    this.personHasMore = true;
+    this.selection.setCurrentPersonId(person.id);
+    this.loadPersonPhotos();
+  }
+
+  closePerson(): void {
+    this.selectedPerson = null;
+    this.personPhotos = [];
+    this.selection.setCurrentPersonId(null);
+    this.selection.exitSelectionMode();
+  }
+
+  loadPersonPhotos(): void {
+    if (this.loadingPersonPhotos || !this.personHasMore || !this.selectedPerson) return;
+    this.loadingPersonPhotos = true;
+    this.api.getPersonPhotos(this.selectedPerson.id, this.personPhotoPage).subscribe({
+      next: (response) => {
+        this.personPhotos.push(...response.photos);
+        this.personPhotoTotal = response.pagination.total;
+        this.personHasMore = this.personPhotoPage < response.pagination.totalPages;
+        this.personPhotoPage++;
+        this.loadingPersonPhotos = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.loadingPersonPhotos = false; },
+    });
+  }
+
+  onPersonScroll(e: Event): void {
+    const el = e.target as HTMLElement;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 500) this.loadPersonPhotos();
+  }
+
+  onPersonPhotoClick(photo: Photo, event: MouseEvent): void {
+    if (event.ctrlKey || event.metaKey) {
+      this.selection.toggle(photo.id);
+      this.lastClickedPersonPhotoId = photo.id;
+      return;
+    }
+    if (event.shiftKey && this.lastClickedPersonPhotoId !== null && this.selection.isSelecting) {
+      const startIdx = this.personPhotos.findIndex((p) => p.id === this.lastClickedPersonPhotoId);
+      const endIdx = this.personPhotos.findIndex((p) => p.id === photo.id);
+      if (startIdx >= 0 && endIdx >= 0) {
+        const from = Math.min(startIdx, endIdx);
+        const to = Math.max(startIdx, endIdx);
+        this.selection.selectAll(this.personPhotos.slice(from, to + 1).map((p) => p.id));
+      }
+      return;
+    }
+    if (this.selection.isSelecting) {
+      this.selection.toggle(photo.id);
+      this.lastClickedPersonPhotoId = photo.id;
+      return;
+    }
+    this.selectedPhoto = photo;
+  }
+
+  getFaceCropUrl(faceId: number): string {
+    return `/api/faces/${faceId}/crop`;
   }
 
   loadAlbums(): void {
@@ -451,12 +689,14 @@ export class AlbumsComponent implements OnInit {
     this.albumPhotos = [];
     this.albumPhotoPage = 1;
     this.albumHasMore = true;
+    this.selection.setCurrentAlbumId(album.id);
     this.loadAlbumPhotos();
   }
 
   closeAlbum(): void {
     this.selectedAlbum = null;
     this.albumPhotos = [];
+    this.selection.setCurrentAlbumId(null);
   }
 
   loadAlbumPhotos(): void {

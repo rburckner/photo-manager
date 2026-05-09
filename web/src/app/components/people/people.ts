@@ -1,14 +1,17 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import { ApiService } from '../../services/api.service';
+import { SelectionService } from '../../services/selection.service';
+import { ThumbSizeSliderComponent } from '../thumb-size-slider/thumb-size-slider';
 import { LightboxComponent } from '../lightbox/lightbox';
 import type { Photo, PersonSummary } from '../../models/photo.model';
 
 @Component({
   selector: 'app-people',
   standalone: true,
-  imports: [CommonModule, FormsModule, LightboxComponent],
+  imports: [CommonModule, FormsModule, LightboxComponent, ThumbSizeSliderComponent],
   template: `
     <div class="people-container">
       <!-- Top: face circles slider -->
@@ -22,6 +25,7 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
           @if (unreviewedCount > 0) {
             <span class="unreviewed-badge">{{ unreviewedCount }} to review</span>
           }
+          <app-thumb-size-slider />
         </div>
       </div>
 
@@ -31,12 +35,16 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
             class="face-circle"
             [class.selected]="selectedPersonSummary?.id === person.id"
             [class.unreviewed]="person.status === 'unreviewed'"
+            [class.hidden]="person.status === 'hidden'"
+            [class.ignored]="person.status === 'ignored'"
+            [title]="person.status === 'hidden' ? 'Hidden — photos with this face are filtered everywhere except here' : (person.status === 'ignored' ? 'Ignored — appears here only when Show ignored is on' : '')"
             (click)="selectPersonSummary(person)"
           >
             @if (person.representative_face_id) {
               <img
                 [src]="getFaceCropUrl(person.representative_face_id)"
                 [alt]="person.name ?? 'Unknown'"
+                (error)="onImageError($event)"
               />
             } @else {
               <div class="no-face">?</div>
@@ -99,23 +107,31 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
           </div>
 
           <div class="person-photos" (scroll)="onScroll($event)">
-            @for (photo of personPhotos; track photo.id) {
-              <div
-                class="photo-card"
-                (click)="openPhoto(photo)"
-                (mouseenter)="photo.is_video === 1 ? onVideoHover($event, photo, true) : null"
-                (mouseleave)="photo.is_video === 1 ? onVideoHover($event, photo, false) : null"
-              >
-                <img
-                  [src]="api.getThumbnailUrl(photo.id)"
-                  [alt]="photo.file_name"
-                  loading="lazy"
-                />
-              </div>
-            }
-            @if (loadingPhotos) {
-              <div class="grid-loading">Loading...</div>
-            }
+            <div class="photo-grid">
+              @for (photo of personPhotos; track photo.id) {
+                <div
+                  class="photo-card"
+                  [class.selectable]="selection.isSelectingSignal()"
+                  [class.selected]="selection.selectedIdsSignal().has(photo.id)"
+                  (click)="onPhotoClick(photo, $event)"
+                  (mouseenter)="photo.is_video === 1 ? onVideoHover($event, photo, true) : null"
+                  (mouseleave)="photo.is_video === 1 ? onVideoHover($event, photo, false) : null"
+                >
+                  @if (selection.isSelectingSignal()) {
+                    <div class="select-check">&#10003;</div>
+                  }
+                  <img
+                    [src]="api.getThumbnailUrl(photo.id)"
+                    [alt]="photo.file_name"
+                    loading="lazy"
+                    (error)="onImageError($event)"
+                  />
+                </div>
+              }
+              @if (loadingPhotos) {
+                <div class="grid-loading">Loading...</div>
+              }
+            </div>
           </div>
         </div>
       }
@@ -218,6 +234,49 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
       &:hover img { border-color: #555; }
       &.selected img { border-color: #3a7bd5; }
       &.unreviewed img { border-color: #cc8; }
+
+      /* Hidden — dim + diagonal slash so they read distinctly at a glance */
+      &.hidden {
+        img, .no-face {
+          opacity: 0.5;
+          filter: grayscale(0.6);
+        }
+        .face-name { color: #844; }
+
+        /* Diagonal slash drawn with a gradient band on a circle-clipped
+           pseudo-element. Sized to match the 112px image. The gradient axis
+           runs top-left → bottom-right, so the perpendicular band reads as
+           a "/" shape (classic strikethrough). */
+        position: relative;
+        &::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 50%;
+          width: 112px;
+          height: 112px;
+          border-radius: 50%;
+          transform: translateX(-50%);
+          pointer-events: none;
+          background: linear-gradient(
+            135deg,
+            transparent calc(50% - 2px),
+            #e88 calc(50% - 2px),
+            #e88 calc(50% + 2px),
+            transparent calc(50% + 2px)
+          );
+        }
+      }
+
+      /* Ignored — just a softer grayscale, no slash (these are random people
+         we've decided aren't worth tracking, not deliberately blocked) */
+      &.ignored {
+        img, .no-face {
+          opacity: 0.45;
+          filter: grayscale(0.85);
+        }
+        .face-name { color: #666; font-style: italic; }
+      }
     }
 
     .face-name {
@@ -245,12 +304,14 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
     /* ── PersonSummary detail ── */
     .person-detail {
       flex: 1;
+      min-height: 0;
       display: flex;
       flex-direction: column;
       overflow: hidden;
     }
 
     .person-controls {
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       gap: 12px;
@@ -291,14 +352,19 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
     .btn-ignore.active { color: #888; }
     .btn-hide.active { color: #e88; border-color: #844; }
 
+    /* Mirror timeline's pattern: scroll container is a plain block, the
+       grid is a regular block child. Keeps the grid out of the flex layout
+       so aspect-ratio: 1 on items works reliably. */
     .person-photos {
       flex: 1;
       overflow-y: auto;
       padding: 12px;
+    }
+
+    .photo-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 160px), 1fr));
       gap: 4px;
-      align-content: start;
     }
 
     .photo-card {
@@ -356,7 +422,7 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
     }
   `],
 })
-export class PeopleComponent implements OnInit {
+export class PeopleComponent implements OnInit, OnDestroy {
   people: PersonSummary[] = [];
   loading = true;
   showIgnored = false;
@@ -371,13 +437,35 @@ export class PeopleComponent implements OnInit {
   selectedPhoto: Photo | null = null;
   showMergeDropdown = false;
 
+  private subs: Subscription[] = [];
+
   constructor(
     public readonly api: ApiService,
+    public readonly selection: SelectionService,
     private readonly cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
     this.loadPeople();
+    // Reload after a bulk action (reassign / hide / delete) fires from the
+    // selection bar so the person photo grid reflects the new state.
+    this.subs.push(
+      this.selection.refresh$.subscribe(() => {
+        this.loadPeople();
+        if (this.selectedPersonSummary) {
+          this.personPhotos = [];
+          this.photoPage = 1;
+          this.hasMorePhotos = true;
+          this.loadPersonSummaryPhotos();
+        }
+      }),
+    );
+  }
+
+  ngOnDestroy(): void {
+    this.subs.forEach((s) => s.unsubscribe());
+    this.selection.exitSelectionMode();
+    this.selection.setCurrentPersonId(null);
   }
 
   loadPeople(): void {
@@ -397,8 +485,39 @@ export class PeopleComponent implements OnInit {
     this.personPhotos = [];
     this.photoPage = 1;
     this.hasMorePhotos = true;
+    this.selection.exitSelectionMode();
+    this.selection.setCurrentPersonId(person.id);
     this.loadPersonSummaryPhotos();
   }
+
+  onPhotoClick(photo: Photo, event: MouseEvent): void {
+    // Ctrl/Cmd-click → toggle selection (enter selection mode if needed)
+    if (event.ctrlKey || event.metaKey) {
+      this.selection.toggle(photo.id);
+      this.lastClickedPhotoId = photo.id;
+      return;
+    }
+    // Shift-click → range select within the current grid
+    if (event.shiftKey && this.lastClickedPhotoId !== null && this.selection.isSelecting) {
+      const startIdx = this.personPhotos.findIndex((p) => p.id === this.lastClickedPhotoId);
+      const endIdx = this.personPhotos.findIndex((p) => p.id === photo.id);
+      if (startIdx >= 0 && endIdx >= 0) {
+        const from = Math.min(startIdx, endIdx);
+        const to = Math.max(startIdx, endIdx);
+        this.selection.selectAll(this.personPhotos.slice(from, to + 1).map((p) => p.id));
+      }
+      return;
+    }
+    // Plain click in selection mode → toggle; else open lightbox
+    if (this.selection.isSelecting) {
+      this.selection.toggle(photo.id);
+      this.lastClickedPhotoId = photo.id;
+      return;
+    }
+    this.openPhoto(photo);
+  }
+
+  private lastClickedPhotoId: number | null = null;
 
   loadPersonSummaryPhotos(): void {
     if (this.loadingPhotos || !this.hasMorePhotos || !this.selectedPersonSummary) return;
@@ -452,6 +571,12 @@ export class PeopleComponent implements OnInit {
 
   getFaceCropUrl(faceId: number): string {
     return `/api/faces/${faceId}/crop`;
+  }
+
+  onImageError(event: Event): void {
+    const img = event.target as HTMLImageElement;
+    if (img.src.endsWith('/ladybug.svg')) return;
+    img.src = '/ladybug.svg';
   }
 
   getMergeTargets(): PersonSummary[] {

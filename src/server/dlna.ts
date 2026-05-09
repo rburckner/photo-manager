@@ -3,8 +3,10 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
+import type Database from 'better-sqlite3';
 import { PhotoRepository } from '../db/repositories/photo.repository.js';
 import { AlbumRepository } from '../db/repositories/album.repository.js';
+import { readTvDateRange } from './routes/photos.js';
 import type { AppConfig } from '../shared/types.js';
 import { getLogger } from '../shared/logger.js';
 
@@ -47,6 +49,7 @@ export function startDlnaServer(
   photoRepo: PhotoRepository,
   albumRepo: AlbumRepository,
   config: AppConfig,
+  db: Database.Database,
 ): void {
   if (dlnaHandle?.running) return;
 
@@ -72,7 +75,7 @@ export function startDlnaServer(
     } else if (url.startsWith('/content/')) {
       serveContent(req, res, url, photoRepo, config);
     } else if (url === '/contentDirectory' && req.method === 'POST') {
-      handleContentDirectory(req, res, photoRepo, albumRepo, baseUrl);
+      handleContentDirectory(req, res, photoRepo, albumRepo, baseUrl, db);
     } else {
       res.writeHead(404);
       res.end('Not found');
@@ -179,6 +182,7 @@ function handleContentDirectory(
   photoRepo: PhotoRepository,
   albumRepo: AlbumRepository,
   baseUrl: string,
+  db: Database.Database,
 ): void {
   let body = '';
   req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
@@ -191,7 +195,7 @@ function handleContentDirectory(
       const startIndex = parseInt(extractTag(body, 'StartingIndex') ?? '0', 10);
       const requestCount = parseInt(extractTag(body, 'RequestedCount') ?? '50', 10);
 
-      const result = browseContent(objectId, startIndex, requestCount, photoRepo, albumRepo, baseUrl);
+      const result = browseContent(objectId, startIndex, requestCount, photoRepo, albumRepo, baseUrl, db);
       sendSoapResponse(res, 'Browse', result);
     } else if (action.includes('GetSystemUpdateID')) {
       sendSoapResponse(res, 'GetSystemUpdateID', '<Id>1</Id>');
@@ -213,15 +217,18 @@ function browseContent(
   photoRepo: PhotoRepository,
   albumRepo: AlbumRepository,
   baseUrl: string,
+  db: Database.Database,
 ): string {
   const limit = Math.min(requestCount || 50, 200);
 
   if (objectId === '0') {
-    // Root — show "All Photos", "Albums", "Timeline"
+    // Root — show "All Photos" (filtered by the TV date range) and "Albums"
+    const { fromDate, toDate } = readTvDateRange(db);
+    const allCount = photoRepo.list({ limit: 0, offset: 0, fromDate, toDate }).total;
     const didl = `<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"
       xmlns:dc="http://purl.org/dc/elements/1.1/"
       xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">
-      <container id="all" parentID="0" restricted="1" childCount="${photoRepo.countAll()}">
+      <container id="all" parentID="0" restricted="1" childCount="${allCount}">
         <dc:title>All Photos</dc:title>
         <upnp:class>object.container</upnp:class>
       </container>
@@ -234,8 +241,11 @@ function browseContent(
   }
 
   if (objectId === 'all') {
-    // All photos
-    const { photos, total } = photoRepo.list({ limit, offset: startIndex });
+    // All non-hidden photos in the configured TV date range. Both date bounds
+    // are read from app_settings (tv_from_date / tv_to_date) — empty string
+    // means "no bound" on that side.
+    const { fromDate, toDate } = readTvDateRange(db);
+    const { photos, total } = photoRepo.list({ limit, offset: startIndex, fromDate, toDate });
     const items = photos.map((p) => photoToDidl(p.id, p.mime_type, p.date_taken, 'all', baseUrl)).join('');
     const didl = `<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"
       xmlns:dc="http://purl.org/dc/elements/1.1/"

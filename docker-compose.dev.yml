@@ -1,0 +1,43 @@
+# Development stack: API in container, Angular on host.
+#
+# Run:    docker compose -f docker-compose.dev.yml up --build
+# Logs:   docker compose -f docker-compose.dev.yml logs -f
+# Shell:  docker compose -f docker-compose.dev.yml exec api bash
+# Stop:   docker compose -f docker-compose.dev.yml down
+#
+# Angular dev server runs on the host (cd web && npm start) and proxies
+# /api + /health to localhost:3000 via web/src/proxy.conf.json.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: photo-manager-dev
+    init: true
+    ports:
+      - "3000:3000"        # API
+      - "8200:8200"        # DLNA content server
+      - "1900:1900/udp"    # SSDP discovery
+    volumes:
+      # Project source — tsx watch reloads on edits.
+      - .:/app
+      # Anonymous volume keeps the image's node_modules from being shadowed
+      # by the host's (which may be built against a different libc / arch).
+      - /app/node_modules
+      # SQLite DB, thumbnails, face models — same layout as production.
+      - ./data:/data
+      # Inbox (host directory used by the cron + watcher).
+      - ./inbox:/inbox
+      # NAS photo library, read-write for ingestion + trash.
+      - /mnt/robert/photos:/photos
+    environment:
+      - PM_MEDIA_ROOT=/photos
+      - PM_DB_PATH=/data/photos.db
+      - PM_THUMBNAIL_DIR=/data/thumbnails
+      - PM_DROPBOX_DIR=/inbox
+      - PM_PORT=3000
+      - PM_HOST=0.0.0.0
+      - PM_LOG_LEVEL=debug
+      - NODE_ENV=development
+    restart: unless-stopped

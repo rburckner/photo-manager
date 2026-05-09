@@ -88,12 +88,15 @@ export async function faceRoutes(
     return faceRepo.getFacesByPhoto(photoId);
   });
 
-  // POST /api/faces/scan — trigger face detection (non-blocking)
+  // POST /api/faces/scan — trigger face detection on the entire backlog of
+  // unscanned photos (non-blocking, cancellable). The cron's daily drip uses
+  // runFaceScanWorker directly with sweepAll=false; this manual endpoint
+  // always sweeps. batch_size controls inner chunk size only.
   app.post<{ Body: { batch_size?: number } }>('/api/faces/scan', async (request) => {
     const batchSize = (request.body as { batch_size?: number } | null)?.batch_size ?? 50;
     const { runFaceScanWorker, isFaceScanRunning } = await import('../../scanner/faces.js');
     if (isFaceScanRunning()) return { ok: true, message: 'Already running' };
-    void runFaceScanWorker(photoRepo, faceRepo, config, batchSize);
+    void runFaceScanWorker(photoRepo, faceRepo, config, batchSize, true);
     return { ok: true, message: 'Face scan started' };
   });
 
@@ -122,6 +125,49 @@ export async function faceRoutes(
     clusterFaces(faceRepo);
     return { ok: true };
   });
+
+  // POST /api/faces/reassign — move faces of from_person_id (in the given
+  // photos) to to_person_id. Used to split a wrongly-clustered person.
+  app.post<{ Body: { from_person_id: number; to_person_id: number; photo_ids: number[] } }>(
+    '/api/faces/reassign',
+    async (request, reply) => {
+      const { from_person_id, to_person_id, photo_ids } = request.body;
+      if (!from_person_id || !to_person_id || from_person_id === to_person_id) {
+        return reply.code(400).send({ error: 'from_person_id and to_person_id required and must differ' });
+      }
+      if (!Array.isArray(photo_ids) || photo_ids.length === 0) {
+        return reply.code(400).send({ error: 'photo_ids array required' });
+      }
+      if (!faceRepo.getPerson(from_person_id) || !faceRepo.getPerson(to_person_id)) {
+        return reply.code(404).send({ error: 'Person not found' });
+      }
+      const reassigned = faceRepo.reassignFacesInPhotos(from_person_id, to_person_id, photo_ids);
+      return { ok: true, reassigned };
+    },
+  );
+
+  // POST /api/faces/split-to-new — create a new person and reassign faces
+  // of from_person_id (in the given photos) to it. The new person is
+  // created with status='unreviewed' so it shows up for triage.
+  app.post<{ Body: { from_person_id: number; photo_ids: number[]; name?: string | null } }>(
+    '/api/faces/split-to-new',
+    async (request, reply) => {
+      const { from_person_id, photo_ids, name } = request.body;
+      if (!from_person_id) {
+        return reply.code(400).send({ error: 'from_person_id required' });
+      }
+      if (!Array.isArray(photo_ids) || photo_ids.length === 0) {
+        return reply.code(400).send({ error: 'photo_ids array required' });
+      }
+      if (!faceRepo.getPerson(from_person_id)) {
+        return reply.code(404).send({ error: 'Person not found' });
+      }
+      const trimmedName = (name ?? '').trim() || null;
+      const newPersonId = faceRepo.createPerson(trimmedName, 'unreviewed');
+      const reassigned = faceRepo.reassignFacesInPhotos(from_person_id, newPersonId, photo_ids);
+      return { ok: true, new_person_id: newPersonId, reassigned };
+    },
+  );
 
   // POST /api/people/merge — merge two people into one
   app.post<{ Body: { keep_id: number; merge_id: number } }>('/api/people/merge', async (request, reply) => {

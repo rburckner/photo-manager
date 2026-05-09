@@ -1,16 +1,17 @@
 import { Component, ChangeDetectorRef, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { FormsModule } from '@angular/forms';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter, Subscription } from 'rxjs';
 import { SelectionService } from '../../services/selection.service';
 import { ApiService } from '../../services/api.service';
 import { ToastService } from '../../services/toast.service';
-import type { Album } from '../../models/photo.model';
+import type { Album, PersonSummary } from '../../models/photo.model';
 
 @Component({
   selector: 'app-selection-bar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     @if (selectionMode) {
       <div class="selection-bar">
@@ -56,6 +57,35 @@ import type { Album } from '../../models/photo.model';
           </div>
           @if (activeAlbumId) {
             <button class="bar-btn btn-danger" (click)="removeFromAlbum()">Remove from Album</button>
+          }
+          @if (activePersonId) {
+            <div class="reassign-dropdown">
+              <button class="bar-btn" (click)="toggleReassignDropdown()">&#8644; Reassign to&hellip;</button>
+              @if (showReassignDropdown) {
+                <div class="dropdown-menu">
+                  <div class="dropdown-section">Existing people</div>
+                  @for (person of getReassignTargets(); track person.id) {
+                    <button class="dropdown-item" (click)="reassignToExisting(person.id, person.name)">
+                      {{ person.name ?? 'Unknown' }} ({{ person.photo_count }})
+                    </button>
+                  }
+                  @if (getReassignTargets().length === 0) {
+                    <div class="dropdown-empty">No other people</div>
+                  }
+                  <div class="dropdown-section">New person</div>
+                  <div class="new-person-row">
+                    <input
+                      type="text"
+                      class="new-person-input"
+                      placeholder="Name (optional)"
+                      [(ngModel)]="newPersonName"
+                      (keydown.enter)="splitToNewPerson()"
+                    />
+                    <button class="dropdown-item-action" (click)="splitToNewPerson()">Create &amp; move</button>
+                  </div>
+                </div>
+              }
+            </div>
           }
           <button class="bar-btn btn-danger" (click)="bulkDelete()">&#128465; Delete</button>
         </div>
@@ -115,7 +145,7 @@ import type { Album } from '../../models/photo.model';
       &:hover { background: rgba(255,100,100,0.15); }
     }
 
-    .date-picker-wrap, .album-dropdown {
+    .date-picker-wrap, .album-dropdown, .reassign-dropdown {
       position: relative;
     }
 
@@ -162,6 +192,51 @@ import type { Album } from '../../models/photo.model';
       text-align: center;
       font-size: 0.8rem;
     }
+
+    .dropdown-section {
+      padding: 6px 12px 4px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #777;
+      background: #1a1a1a;
+      border-top: 1px solid #2a2a2a;
+
+      &:first-child { border-top: none; }
+    }
+
+    .new-person-row {
+      display: flex;
+      gap: 4px;
+      padding: 6px 8px 8px;
+      align-items: center;
+    }
+
+    .new-person-input {
+      flex: 1;
+      min-width: 0;
+      padding: 6px 8px;
+      background: #1a1a1a;
+      border: 1px solid #444;
+      color: #ddd;
+      border-radius: 4px;
+      font-size: 0.8rem;
+
+      &:focus { outline: none; border-color: #666; }
+    }
+
+    .dropdown-item-action {
+      padding: 6px 10px;
+      background: #2a3a5a;
+      border: 1px solid #3a5a8a;
+      color: #cde;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      white-space: nowrap;
+
+      &:hover { background: #3a5a8a; }
+    }
   `],
 })
 export class SelectionBarComponent implements OnInit, OnDestroy {
@@ -169,8 +244,12 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
   count = 0;
   showAlbumDropdown = false;
   showDatePicker = false;
+  showReassignDropdown = false;
   albums: Album[] = [];
   activeAlbumId: number | null = null;
+  activePersonId: number | null = null;
+  peopleList: PersonSummary[] = [];
+  newPersonName = '';
   isHiddenView = false;
 
   private subs: Subscription[] = [];
@@ -197,6 +276,39 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
         this.count = c;
         this.cdr.detectChanges();
       }),
+      // Track the active album so the "Remove from Album" button shows up
+      // only inside an album detail view.
+      this.selection.currentAlbumId$.subscribe((id) => {
+        this.activeAlbumId = id;
+        this.cdr.detectChanges();
+      }),
+      // Track the active person so the "Reassign to..." dropdown only
+      // shows up inside a person detail view on /people. Also pre-load the
+      // people list since we'll need it for the dropdown targets.
+      this.selection.currentPersonId$.subscribe((id) => {
+        this.activePersonId = id;
+        if (id !== null && this.peopleList.length === 0) {
+          this.api.getPeople(true).subscribe({
+            next: (people) => { this.peopleList = people; this.cdr.detectChanges(); },
+          });
+        }
+        this.cdr.detectChanges();
+      }),
+      // Clear selection + close any open dropdowns whenever the user
+      // navigates between pages. A selection from /timeline shouldn't
+      // carry into /albums or /people.
+      this.router.events.pipe(filter((e) => e instanceof NavigationEnd))
+        .subscribe(() => {
+          if (this.selection.isSelecting) {
+            this.selection.exitSelectionMode();
+          }
+          this.showAlbumDropdown = false;
+          this.showDatePicker = false;
+          this.showReassignDropdown = false;
+          // Force a fresh albums fetch on next selection — counts may have changed
+          this.albums = [];
+          this.peopleList = [];
+        }),
     );
   }
 
@@ -266,11 +378,61 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
     });
   }
 
+  toggleReassignDropdown(): void {
+    this.showReassignDropdown = !this.showReassignDropdown;
+    this.newPersonName = '';
+  }
+
+  /** Existing people the current person could be reassigned to (excludes self). */
+  getReassignTargets(): PersonSummary[] {
+    if (!this.activePersonId) return [];
+    return this.peopleList.filter((p) => p.id !== this.activePersonId);
+  }
+
+  reassignToExisting(toPersonId: number, toName: string | null): void {
+    if (!this.activePersonId) return;
+    const ids = this.selection.ids;
+    if (ids.length === 0) return;
+    this.api.reassignFaces(this.activePersonId, toPersonId, ids).subscribe({
+      next: (res) => {
+        this.showReassignDropdown = false;
+        this.selection.exitSelectionMode();
+        this.selection.notifyRefresh();
+        const target = toName ?? 'Unknown';
+        this.toast.success(`Reassigned ${res.reassigned} face(s) to "${target}"`);
+      },
+      error: () => this.toast.error('Reassign failed'),
+    });
+  }
+
+  splitToNewPerson(): void {
+    if (!this.activePersonId) return;
+    const ids = this.selection.ids;
+    if (ids.length === 0) return;
+    const name = this.newPersonName.trim() || null;
+    this.api.splitFacesToNewPerson(this.activePersonId, ids, name).subscribe({
+      next: (res) => {
+        this.showReassignDropdown = false;
+        this.newPersonName = '';
+        this.selection.exitSelectionMode();
+        this.selection.notifyRefresh();
+        this.toast.success(`Split ${res.reassigned} face(s) to ${name ? `"${name}"` : 'a new person'}`);
+      },
+      error: () => this.toast.error('Split failed'),
+    });
+  }
+
   removeFromAlbum(): void {
     if (!this.activeAlbumId) return;
     const ids = this.selection.ids;
+    if (ids.length === 0) return;
     this.api.removePhotosFromAlbum(this.activeAlbumId, ids).subscribe({
-      next: () => this.toast.success(`Removed ${ids.length} photos from album`),
+      next: () => {
+        this.selection.exitSelectionMode();
+        this.selection.notifyRefresh();
+        const noun = ids.length === 1 ? 'photo' : 'photos';
+        this.toast.success(`Removed ${ids.length} ${noun} from album`);
+      },
       error: () => this.toast.error('Remove from album failed'),
     });
   }

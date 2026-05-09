@@ -4,6 +4,11 @@ import { Command } from 'commander';
 import { createScanCommand } from './commands/scan.js';
 import { createImportTakeoutCommand } from './commands/import-takeout.js';
 import { createPairCommand } from './commands/pair.js';
+import { createFindRedundantJpgsCommand } from './commands/find-redundant-jpgs.js';
+import { createMoveRedundantJpgsCommand } from './commands/move-redundant-jpgs.js';
+import { createPruneMissingCommand } from './commands/prune-missing.js';
+import { createPurgeStagedJpgRowsCommand } from './commands/purge-staged-jpg-rows.js';
+import { createResetFaceDataCommand } from './commands/reset-face-data.js';
 import { getDb, closeDb } from '../db/connection.js';
 import { runMigrations } from '../db/migrate.js';
 import { PhotoRepository } from '../db/repositories/photo.repository.js';
@@ -25,6 +30,13 @@ program.addCommand(createImportTakeoutCommand());
 
 // ── pair command ──
 program.addCommand(createPairCommand());
+
+// ── redundant-JPG management ──
+program.addCommand(createFindRedundantJpgsCommand());
+program.addCommand(createMoveRedundantJpgsCommand());
+program.addCommand(createPruneMissingCommand());
+program.addCommand(createPurgeStagedJpgRowsCommand());
+program.addCommand(createResetFaceDataCommand());
 
 // ── migrate command ──
 program

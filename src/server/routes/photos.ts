@@ -24,6 +24,33 @@ interface PhotoSummary {
   thumbnail_path: string | null;
 }
 
+/**
+ * Sniff a User-Agent and decide whether the client renders HEIC natively.
+ * Standard tri-test: present 'Safari' AND absent 'Chrome'/'Chromium'/'Edg'/
+ * 'Android'. Coarse but correct in practice — Safari on macOS/iOS is the
+ * only widely-deployed browser with native HEIC support today.
+ */
+export function isSafariUserAgent(ua: string | undefined): boolean {
+  if (!ua) return false;
+  return /Safari/i.test(ua) && !/Chrome|Chromium|Edg|Android/i.test(ua);
+}
+
+/**
+ * Read the configured TV slideshow date range from app_settings.
+ * Both keys hold ISO date strings (e.g. "2020-01-01") or '' for no bound.
+ * Used by /api/photos/slideshow and DLNA's "All Photos" container.
+ */
+export function readTvDateRange(db: import('better-sqlite3').Database): { fromDate?: string; toDate?: string } {
+  const rows = db.prepare("SELECT key, value FROM app_settings WHERE key IN ('tv_from_date', 'tv_to_date')").all() as Array<{ key: string; value: string }>;
+  let fromDate: string | undefined;
+  let toDate: string | undefined;
+  for (const r of rows) {
+    if (r.key === 'tv_from_date' && r.value) fromDate = r.value;
+    if (r.key === 'tv_to_date' && r.value) toDate = r.value;
+  }
+  return { fromDate, toDate };
+}
+
 export async function photoRoutes(
   app: FastifyInstance,
   opts: { photoRepo: PhotoRepository; config: AppConfig; db: import('better-sqlite3').Database },
@@ -56,14 +83,15 @@ export async function photoRoutes(
 
   // GET /api/photos/timeline — grouped by date for timeline view
   app.get<{
-    Querystring: { page?: string; limit?: string; before?: string; after?: string };
+    Querystring: { page?: string; limit?: string; before?: string; after?: string; order?: string };
   }>('/api/photos/timeline', async (request) => {
     const limit = Math.min(500, Math.max(1, parseInt(request.query.limit ?? '100', 10)));
     const offset = Math.max(0, parseInt(request.query.page ?? '0', 10)) * limit;
     const before = request.query.before;
     const after = request.query.after;
+    const order = request.query.order === 'asc' ? 'asc' : 'desc';
 
-    const photos = photoRepo.getTimeline({ limit, offset, before, after });
+    const photos = photoRepo.getTimeline({ limit, offset, before, after, sort: 'date', order });
 
     // Group by date
     const groups = new Map<string, TimelineGroup>();
@@ -106,7 +134,9 @@ export async function photoRoutes(
     return photo;
   });
 
-  // GET /api/photos/:id/thumbnail — serve thumbnail image, fall back to original
+  // GET /api/photos/:id/thumbnail — serve thumbnail image, fall back to
+  // generate-on-demand for browser-unfriendly formats (HEIC), then to the
+  // original file from NAS for everything else.
   app.get<{ Params: { id: string } }>('/api/photos/:id/thumbnail', async (request, reply) => {
     const id = parseInt(request.params.id, 10);
     const photo = photoRepo.findById(id);
@@ -115,7 +145,7 @@ export async function photoRoutes(
       return reply.code(404).send({ error: 'Photo not found' });
     }
 
-    // Try thumbnail first
+    // Try cached thumbnail first
     if (photo.thumbnail_path) {
       const thumbPath = join(config.thumbnailDir, photo.thumbnail_path);
       if (existsSync(thumbPath)) {
@@ -126,8 +156,39 @@ export async function photoRoutes(
       }
     }
 
-    // Fall back to original file from NAS
+    // Cache miss. For HEIC/HEIF (browsers can't render natively), try to
+    // generate the thumb now using the existing JPG-sibling fallback. Caches
+    // it on disk + persists thumbnail_path so the next request hits cache.
+    const isHeic = photo.mime_type === 'image/heic' || photo.mime_type === 'image/heif';
     const filePath = join(config.mediaRoot, photo.file_path);
+
+    if (isHeic && existsSync(filePath)) {
+      try {
+        const { generateThumbnail } = await import('../../scanner/thumbnails.js');
+        const thumbRel = await generateThumbnail(filePath, photo.file_hash, false, {
+          size: config.thumbnailSize,
+          quality: config.thumbnailQuality,
+          outputDir: config.thumbnailDir,
+        });
+        if (thumbRel) {
+          photoRepo.setThumbnailPath(photo.id, thumbRel);
+          const thumbAbs = join(config.thumbnailDir, thumbRel);
+          if (existsSync(thumbAbs)) {
+            return await reply
+              .type('image/jpeg')
+              .header('Cache-Control', 'public, max-age=86400, immutable')
+              .send(createReadStream(thumbAbs));
+          }
+        }
+      } catch {
+        // fall through to the original-file path below
+      }
+      // Generation failed and no JPG sibling was available — browsers can't
+      // render HEIC bytes, so 404 is the honest answer (UI will show ladybug).
+      return reply.code(404).send({ error: 'Thumbnail unavailable' });
+    }
+
+    // Non-HEIC cache miss: stream the original (browser can render JPEG/PNG/etc.)
     if (!existsSync(filePath)) {
       return reply.code(404).send({ error: 'File not found' });
     }
@@ -138,7 +199,13 @@ export async function photoRoutes(
       .send(createReadStream(filePath));
   });
 
-  // GET /api/photos/:id/file — serve original file from NAS
+  // GET /api/photos/:id/file — serve original file from NAS.
+  //
+  // For HEIC/HEIF photos served to non-Safari browsers (Chrome/Firefox/Edge —
+  // none of which natively render HEIC), transcode to a 2400px-max-edge JPEG
+  // on the fly. Aggressive HTTP cache headers keep the cost to one transcode
+  // per (photo, browser cache lifetime), and Safari clients still get the
+  // original HEIC for full fidelity.
   app.get<{ Params: { id: string } }>('/api/photos/:id/file', async (request, reply) => {
     const id = parseInt(request.params.id, 10);
     const photo = photoRepo.findById(id);
@@ -150,6 +217,45 @@ export async function photoRoutes(
     const filePath = join(config.mediaRoot, photo.file_path);
     if (!existsSync(filePath)) {
       return reply.code(404).send({ error: 'File not found on disk' });
+    }
+
+    const isHeic = photo.mime_type === 'image/heic' || photo.mime_type === 'image/heif';
+    if (isHeic && !isSafariUserAgent(request.headers['user-agent'])) {
+      try {
+        const sharp = (await import('sharp')).default;
+        const { decodeHeicToRaw, sharpFromDecoded, isHeicDecodeFailure } =
+          await import('../../scanner/heic-fallback.js');
+
+        let buffer;
+        try {
+          buffer = await sharp(filePath)
+            .rotate()
+            .resize(2400, 2400, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 85 })
+            .toBuffer();
+        } catch (sharpErr) {
+          if (!isHeicDecodeFailure(sharpErr)) throw sharpErr;
+          // Sharp's prebuilt libheif lacks HEVC; decode via WASM libheif then
+          // hand off to sharp for resize + JPEG.
+          const decoded = await decodeHeicToRaw(filePath);
+          buffer = await sharpFromDecoded(decoded)
+            .rotate()
+            .resize(2400, 2400, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 85 })
+            .toBuffer();
+        }
+
+        return await reply
+          .type('image/jpeg')
+          .header('Cache-Control', 'public, max-age=604800, immutable')
+          .header('ETag', `"${photo.file_hash}-jpeg"`)
+          .send(buffer);
+      } catch {
+        // Both sharp and heic-decode failed (corrupt file or genuinely
+        // unsupported encoding). Fall through to streaming the raw HEIC;
+        // the browser will show a broken image and the UI's onImageError
+        // swap to ladybug.svg will catch it.
+      }
     }
 
     return reply
@@ -449,6 +555,70 @@ export async function photoRoutes(
     return { ok: true };
   });
 
+  // ── Date re-scan ──
+  // Sweeps every non-video photo, re-extracts EXIF (with HEIC sibling
+  // fallback), and writes date_taken when EXIF actually has a date. Files
+  // whose EXIF still has no date keep whatever's in the DB — preserving
+  // manual fix-dates edits for genuinely date-less files.
+  let dateScanRunning = false;
+  let dateScanCancelled = false;
+  const isDateCancelled = (): boolean => dateScanCancelled;
+  let dateScanProgress = { checked: 0, updated: 0, total: 0 };
+
+  app.post('/api/photos/rescan-dates', async () => {
+    if (dateScanRunning) return { ok: true, message: 'Already running' };
+
+    dateScanRunning = true;
+    dateScanCancelled = false;
+    dateScanProgress = { checked: 0, updated: 0, total: 0 };
+
+    void (async () => {
+      const { extractExif } = await import('../../scanner/exif.js');
+      const all = photoRepo.getAllImagePhotos(999999);
+      dateScanProgress.total = all.length;
+
+      for (const photo of all) {
+        if (isDateCancelled()) break;
+
+        const filePath = join(config.mediaRoot, photo.file_path);
+        if (existsSync(filePath)) {
+          const exif = await extractExif(filePath);
+          // Only overwrite when EXIF actually has a date — genuinely date-
+          // less files keep their existing (manually-set) date.
+          if (exif.dateTaken instanceof Date && !isNaN(exif.dateTaken.getTime())) {
+            photoRepo.updateDateTaken(photo.id, exif.dateTaken.toISOString());
+            dateScanProgress.updated++;
+          }
+        }
+        dateScanProgress.checked++;
+
+        // Yield every 10 photos so the API thread doesn't starve
+        if (dateScanProgress.checked % 10 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+      }
+
+      dateScanRunning = false;
+    })();
+
+    return { ok: true, message: 'Date scan started' };
+  });
+
+  app.get('/api/photos/rescan-dates/status', async () => {
+    const totalImages = (db.prepare("SELECT count(*) as c FROM photos WHERE is_video = 0 AND deleted_at IS NULL").get() as { c: number }).c;
+    return {
+      running: dateScanRunning,
+      checked: dateScanProgress.checked,
+      updated: dateScanProgress.updated,
+      total: dateScanRunning ? dateScanProgress.total : totalImages,
+    };
+  });
+
+  app.post('/api/photos/rescan-dates/cancel', async () => {
+    dateScanCancelled = true;
+    return { ok: true };
+  });
+
   // POST /api/embeddings/scan — start embedding scan (non-blocking)
   app.post<{ Body: { batch_size?: number } }>('/api/embeddings/scan', async (request) => {
     const batchSize = (request.body as { batch_size?: number } | null)?.batch_size ?? 50;
@@ -602,14 +772,24 @@ export async function photoRoutes(
     return latest ?? { status: 'idle' };
   });
 
-  // GET /api/photos/slideshow — photos for TV slideshow
+  // GET /api/photos/slideshow — photos for TV slideshow / DLNA "All Photos".
+  // When no album_id is given, the date range is read from app_settings
+  // (tv_from_date / tv_to_date). Empty strings mean "no bound".
   app.get<{
     Querystring: { limit?: string; shuffle?: string; album_id?: string };
   }>('/api/photos/slideshow', async (request) => {
     const limit = Math.min(5000, parseInt(request.query.limit ?? '500', 10));
     const shuffle = request.query.shuffle !== 'false';
     const albumId = request.query.album_id ? parseInt(request.query.album_id, 10) : undefined;
-    return photoRepo.getSlideshow({ limit, shuffle, albumId });
+
+    let fromDate: string | undefined;
+    let toDate: string | undefined;
+    if (!albumId) {
+      const range = readTvDateRange(db);
+      fromDate = range.fromDate;
+      toDate = range.toDate;
+    }
+    return photoRepo.getSlideshow({ limit, shuffle, albumId, fromDate, toDate });
   });
 
   // GET /api/photos/map — photos with GPS coordinates for map view
@@ -658,7 +838,7 @@ export async function photoRoutes(
     const { AlbumRepository } = await import('../../db/repositories/album.repository.js');
     const albumRepo = new AlbumRepository(photoRepo['db']);
     if (!getDlnaStatus().running) {
-      startDlnaServer(photoRepo, albumRepo, config);
+      startDlnaServer(photoRepo, albumRepo, config, db);
     }
     return { ok: true, running: true };
   });

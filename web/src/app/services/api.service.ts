@@ -9,10 +9,11 @@ export class ApiService {
 
   constructor(private readonly http: HttpClient) {}
 
-  getTimeline(page: number = 0, limit: number = 100, after?: string, before?: string): Observable<TimelineResponse> {
+  getTimeline(page: number = 0, limit: number = 100, after?: string, before?: string, order: 'asc' | 'desc' = 'desc'): Observable<TimelineResponse> {
     let params = new HttpParams()
       .set('page', page.toString())
-      .set('limit', limit.toString());
+      .set('limit', limit.toString())
+      .set('order', order);
     if (after) params = params.set('after', after);
     if (before) params = params.set('before', before);
     return this.http.get<TimelineResponse>(`${this.baseUrl}/photos/timeline`, { params });
@@ -368,6 +369,32 @@ export class ApiService {
   getPersonPhotos(personId: number, page: number = 1): Observable<PaginatedResponse<Photo>> {
     const params = new HttpParams().set('page', page.toString());
     return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/people/${personId}/photos`, { params });
+  }
+
+  rescanDates(): Observable<{ ok: boolean; message: string }> {
+    return this.http.post<{ ok: boolean; message: string }>(`${this.baseUrl}/photos/rescan-dates`, {});
+  }
+
+  getRescanDatesStatus(): Observable<{ running: boolean; checked: number; updated: number; total: number }> {
+    return this.http.get<{ running: boolean; checked: number; updated: number; total: number }>(`${this.baseUrl}/photos/rescan-dates/status`);
+  }
+
+  cancelRescanDates(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/rescan-dates/cancel`, {});
+  }
+
+  reassignFaces(fromPersonId: number, toPersonId: number, photoIds: number[]): Observable<{ ok: boolean; reassigned: number }> {
+    return this.http.post<{ ok: boolean; reassigned: number }>(
+      `${this.baseUrl}/faces/reassign`,
+      { from_person_id: fromPersonId, to_person_id: toPersonId, photo_ids: photoIds },
+    );
+  }
+
+  splitFacesToNewPerson(fromPersonId: number, photoIds: number[], name: string | null): Observable<{ ok: boolean; new_person_id: number; reassigned: number }> {
+    return this.http.post<{ ok: boolean; new_person_id: number; reassigned: number }>(
+      `${this.baseUrl}/faces/split-to-new`,
+      { from_person_id: fromPersonId, photo_ids: photoIds, name },
+    );
   }
 
   triggerFaceScan(batchSize: number = 100): Observable<{ scanned: number; facesFound: number }> {

@@ -92,14 +92,6 @@ async function start(): Promise<void> {
   const photoRepo = new PhotoRepository(db);
   const albumRepo = new AlbumRepository(db);
 
-  // Ensure default TV album exists
-  const tvAlbumName = 'TV Slideshow';
-  const existingAlbums = albumRepo.list();
-  if (!existingAlbums.some((a) => a.name === tvAlbumName)) {
-    albumRepo.create({ name: tvAlbumName, description: 'Photos displayed on the TV slideshow' });
-    log.info('Created default "TV Slideshow" album');
-  }
-
   // Register API routes
   await app.register(photoRoutes, { photoRepo, config, db });
   await app.register(albumRoutes, { albumRepo, db });
@@ -145,7 +137,7 @@ async function start(): Promise<void> {
   log.info({ port: config.serverPort, host: config.serverHost }, 'Server started');
 
   // Start DLNA server for TV discovery on local network
-  startDlnaServer(photoRepo, albumRepo, config);
+  startDlnaServer(photoRepo, albumRepo, config, db);
 
   // Start inbox watcher for photo ingestion
   startInboxWatcher(config, photoRepo);

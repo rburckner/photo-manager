@@ -11,6 +11,9 @@ import * as m008 from './migrations/008_image_embeddings.js';
 import * as m009 from './migrations/009_notifications.js';
 import * as m010 from './migrations/010_trash.js';
 import * as m011 from './migrations/011_perceptual_hash.js';
+import * as m012 from './migrations/012_show_hidden_setting.js';
+import * as m013 from './migrations/013_tv_date_range.js';
+import * as m014 from './migrations/014_trash_reason.js';
 
 interface Migration {
   name: string;
@@ -29,6 +32,9 @@ const migrations: Migration[] = [
   m009,
   m010,
   m011,
+  m012,
+  m013,
+  m014,
 ];
 
 export function runMigrations(db: Database.Database): void {

@@ -124,6 +124,18 @@ import { SettingsService } from '../../services/settings.service';
         </ul>
       </nav>
       <main class="content">
+        @if (showHiddenOverride) {
+          <div class="hidden-override-banner" role="status">
+            <span class="banner-dot"></span>
+            <span class="banner-text">
+              <strong>Showing hidden content</strong> — photos and people you've
+              hidden are temporarily visible.
+            </span>
+            <button class="banner-action" (click)="disableShowHidden()">
+              Stop showing hidden
+            </button>
+          </div>
+        }
         <app-selection-bar />
         <router-outlet />
       </main>
@@ -146,6 +158,37 @@ import { SettingsService } from '../../services/settings.service';
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
+    }
+
+    .hidden-override-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      background: #2a1f0f;
+      border-bottom: 1px solid #5a4520;
+      color: #ec8;
+      font-size: 0.8rem;
+
+      .banner-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #d80;
+        box-shadow: 0 0 6px #d80;
+        flex-shrink: 0;
+      }
+      .banner-text { flex: 1; }
+      .banner-action {
+        background: transparent;
+        border: 1px solid #5a4520;
+        color: #ec8;
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.75rem;
+        &:hover { background: #3a2a1a; }
+      }
     }
 
     .logo {
@@ -253,6 +296,7 @@ import { SettingsService } from '../../services/settings.service';
 })
 export class ShellComponent implements OnInit, OnDestroy {
   showFolders = true;
+  showHiddenOverride = false;
   settingsLoaded = false;
   trashCount = 0;
 
@@ -273,6 +317,7 @@ export class ShellComponent implements OnInit, OnDestroy {
       this.settingsService.settings$.subscribe((settings) => {
         if (Object.keys(settings).length > 0) {
           this.showFolders = settings['show_folders_nav'] !== 'false';
+          this.showHiddenOverride = settings['show_hidden'] === 'true';
           this.settingsLoaded = true;
           this.cdr.detectChanges();
         }
@@ -290,6 +335,10 @@ export class ShellComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subs.forEach((s) => s.unsubscribe());
+  }
+
+  disableShowHidden(): void {
+    this.settingsService.set('show_hidden', 'false');
   }
 
   private refreshTrashCount(): void {

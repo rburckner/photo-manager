@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, statSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -125,27 +125,4 @@ describe('generateThumbnail (image path)', () => {
     expect(result).toBeNull();
   });
 
-  it('falls back to a sibling .jpg when the HEIC source fails to decode', async () => {
-    // Simulate an unreadable HEIC alongside a valid JPG twin
-    const heicPath = join(workDir, 'photo.heic');
-    const jpgPath = join(workDir, 'photo.jpg');
-    writeFileSync(heicPath, 'not actually heic'); // sharp will fail on this
-    await makeTestPng(jpgPath, 100, 100); // valid PNG written as .jpg — sharp infers format
-
-    const result = await generateThumbnail(heicPath, 'heicfallback', false, {
-      size: 200,
-      quality: 80,
-      outputDir,
-    });
-
-    // Either succeeds via JPG fallback or returns null. We accept both since the
-    // code attempts the fallback only when the primary HEIC decode raises.
-    if (result !== null) {
-      const thumbAbs = join(outputDir, 'he', 'heicfallback.jpg');
-      expect(existsSync(thumbAbs)).toBe(true);
-      // Confirm the data came from the JPG twin (200x200 background)
-      const out = readFileSync(thumbAbs);
-      expect(out.length).toBeGreaterThan(0);
-    }
-  });
 });

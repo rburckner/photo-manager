@@ -34,7 +34,10 @@ export class FilterService {
 
   setYear(year: number | null): void {
     if (year === null) {
-      this.update({ ...this.state.value, activeYear: null });
+      // Clear the date range too — otherwise the previously-selected year's
+      // bounds (e.g. 2024-01..2024-12) leak into "All" on next load and the
+      // inputs render the old year filter even though the All pill is active.
+      this.update({ ...this.state.value, fromDate: '', toDate: '', activeYear: null });
     } else {
       this.update({ ...this.state.value, fromDate: `${year}-01`, toDate: `${year}-12`, activeYear: year });
     }

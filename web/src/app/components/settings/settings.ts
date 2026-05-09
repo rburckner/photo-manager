@@ -53,7 +53,11 @@ import type { CollectionStats } from '../../models/photo.model';
           </div>
           @if (gpsStatus) {
             <div class="job-progress">
-              {{ gpsStatus.withGps.toLocaleString() }} geotagged — {{ gpsStatus.withoutGps.toLocaleString() }} without GPS
+              @if (gpsStatus.running) {
+                {{ gpsStatus.checked.toLocaleString() }} / {{ gpsStatus.total.toLocaleString() }} scanned — {{ gpsStatus.found.toLocaleString() }} new geotag(s)
+              } @else {
+                {{ gpsStatus.withGps.toLocaleString() }} geotagged — {{ gpsStatus.withoutGps.toLocaleString() }} without GPS
+              }
             </div>
             <div class="job-actions">
               <button class="btn-job" (click)="rescanGps()" [disabled]="gpsRunning">
@@ -61,6 +65,35 @@ import type { CollectionStats } from '../../models/photo.model';
               </button>
               @if (gpsRunning) {
                 <button class="btn-job btn-cancel" (click)="cancelGpsScan()">Cancel</button>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Photo Dates -->
+        <div class="job-card">
+          <div class="job-header">
+            <span class="job-icon">&#128197;</span>
+            <span class="job-name">Photo Dates</span>
+            @if (datesStatus?.running) { <span class="job-badge running">Running</span> }
+          </div>
+          <div class="job-desc">
+            Re-extracts EXIF from every image and writes any date it finds back to the DB. Files whose EXIF still has no date keep your manually-set Fix Dates values.
+          </div>
+          @if (datesStatus) {
+            <div class="job-progress">
+              @if (datesStatus.running) {
+                {{ datesStatus.checked.toLocaleString() }} / {{ datesStatus.total.toLocaleString() }} scanned — {{ datesStatus.updated.toLocaleString() }} date(s) updated
+              } @else {
+                {{ datesStatus.total.toLocaleString() }} images indexed
+              }
+            </div>
+            <div class="job-actions">
+              <button class="btn-job" (click)="rescanDates()" [disabled]="datesRunning">
+                {{ datesRunning ? 'Scanning...' : 'Re-scan dates from EXIF' }}
+              </button>
+              @if (datesRunning) {
+                <button class="btn-job btn-cancel" (click)="cancelDatesScan()">Cancel</button>
               }
             </div>
           }
@@ -133,6 +166,19 @@ import type { CollectionStats } from '../../models/photo.model';
               {{ clusteringRunning ? 'Clustering...' : 'Cluster Faces' }}
             </button>
           </div>
+          @if (clusteringResult) {
+            <div class="job-progress cluster-result">
+              @if (clusteringResult.newPeople > 0) {
+                Created {{ clusteringResult.newPeople.toLocaleString() }} new
+                {{ clusteringResult.newPeople === 1 ? 'person' : 'people' }}
+                covering {{ clusteringResult.photosCovered.toLocaleString() }} photos.
+                Review them on the People page.
+              } @else {
+                No new clusters formed — remaining unassigned faces aren't
+                similar enough to each other (under the 0.6 threshold) to group.
+              }
+            </div>
+          }
         </div>
 
         <!-- Photo Ingestion -->
@@ -202,25 +248,13 @@ import type { CollectionStats } from '../../models/photo.model';
       <div class="section-group">
         <h3 class="group-title">Tools</h3>
 
-      <!-- Date Management -->
-      <div class="setting-section">
-        <h3>Date Management</h3>
-        <p class="section-desc">
-          Fix photos with missing or incorrect dates by dragging them to the correct month.
-        </p>
-        <div class="action-row">
-          <a href="/fix-dates" class="btn-action" style="text-decoration:none">
-            Open Fix Dates Tool
-          </a>
-        </div>
-      </div>
-
       <!-- TV Services -->
       <div class="setting-section">
         <h3>TV Services</h3>
         <p class="section-desc">
-          DLNA allows smart TVs to discover and browse your photos automatically.
-          The slideshow is accessible at <a href="/tv" target="_blank">/tv</a>.
+          DLNA lets smart TVs discover and browse your photos. The slideshow is at
+          <a href="/tv" target="_blank">/tv</a>. Both serve every non-hidden photo
+          inside the date window below — leave a bound empty for "no limit" on that side.
         </p>
         <div class="action-row">
           <button
@@ -234,16 +268,29 @@ import type { CollectionStats } from '../../models/photo.model';
             Open TV Slideshow
           </a>
         </div>
-        @if (tvAlbumId) {
-          <div class="status-row" style="margin-top: 8px">
-            <span class="status-label">Default album:</span>
-            <span class="status-value">TV Slideshow (id: {{ tvAlbumId }})</span>
-          </div>
-          <div class="status-row">
-            <span class="status-label">TV URL with album:</span>
-            <span class="status-value"><code>/tv?album={{ tvAlbumId }}</code></span>
-          </div>
-        }
+        <div class="tv-date-range">
+          <label class="toggle-row">
+            <span>From</span>
+            <input
+              type="month"
+              [value]="tvFromMonth"
+              (change)="onTvFromChange($event)"
+              class="date-input"
+            />
+          </label>
+          <label class="toggle-row">
+            <span>To</span>
+            <input
+              type="month"
+              [value]="tvToMonth"
+              (change)="onTvToChange($event)"
+              class="date-input"
+            />
+          </label>
+          @if (tvFromMonth || tvToMonth) {
+            <button class="btn-action" (click)="clearTvDateRange()">Clear range</button>
+          }
+        </div>
       </div>
 
       <!-- Hidden Photos -->
@@ -300,6 +347,25 @@ import type { CollectionStats } from '../../models/photo.model';
             (change)="toggleSetting('show_duplicates_nav', $event)"
           />
           <span>Show Duplicates view</span>
+        </label>
+      </div>
+
+      <!-- Privacy / hidden override -->
+      <div class="setting-section">
+        <h3>Hidden content</h3>
+        <p class="section-desc">
+          Photos can be hidden two ways: by selecting them and choosing Hide, or by
+          marking a person as hidden in the People view (which hides every photo with
+          that person's face). Toggle this on to temporarily reveal both kinds — useful
+          when searching for a specific moment. Trashed photos are never affected.
+        </p>
+        <label class="toggle-row">
+          <input
+            type="checkbox"
+            [checked]="settings['show_hidden'] === 'true'"
+            (change)="toggleSetting('show_hidden', $event)"
+          />
+          <span>Temporarily show hidden photos and people</span>
         </label>
       </div>
 
@@ -448,6 +514,15 @@ import type { CollectionStats } from '../../models/photo.model';
       margin-bottom: 6px;
     }
 
+    .cluster-result {
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: #0f2118;
+      border: 1px solid #1f4a30;
+      border-radius: 6px;
+      color: #8c8;
+    }
+
     .job-desc {
       font-size: 0.78rem;
       color: #666;
@@ -518,6 +593,35 @@ import type { CollectionStats } from '../../models/photo.model';
     .action-row {
       display: flex;
       gap: 8px;
+    }
+
+    .tv-date-range {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-top: 12px;
+      flex-wrap: wrap;
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0;
+
+        span { color: #aaa; font-size: 0.85rem; }
+      }
+
+      .date-input {
+        background: #222;
+        border: 1px solid #444;
+        color: #e0e0e0;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+
+        &:focus { outline: none; border-color: #666; }
+        &::-webkit-calendar-picker-indicator { filter: invert(0.7); }
+      }
     }
 
     .btn-action {
@@ -704,14 +808,22 @@ export class SettingsComponent implements OnInit {
   settings: Record<string, string> = {};
   dlnaRunning = false;
   tvAlbumId: number | null = null;
+  // YYYY-MM strings for the <input type="month"> bindings. Empty = no bound.
+  tvFromMonth = '';
+  tvToMonth = '';
 
   faceScanRunning = true; // assume running until status confirms
   faceStatus: { running: boolean; total: number; scanned: number; faces: number; remaining: number } | null = null;
   private facePollTimer: ReturnType<typeof setInterval> | null = null;
   clusteringRunning = false;
+  clusteringResult: { newPeople: number; photosCovered: number } | null = null;
+  private clusteringResultTimer: ReturnType<typeof setTimeout> | null = null;
   gpsRunning = true; // assume running until status confirms
   gpsStatus: { running: boolean; withGps: number; withoutGps: number; checked: number; found: number; total: number } | null = null;
   private gpsPollTimer: ReturnType<typeof setInterval> | null = null;
+  datesRunning = true; // assume running until status confirms
+  datesStatus: { running: boolean; checked: number; updated: number; total: number } | null = null;
+  private datesPollTimer: ReturnType<typeof setInterval> | null = null;
   embeddingRunning = true; // assume running until status confirms otherwise
   embeddingStatus: { running: boolean; total: number; embedded: number; remaining: number } | null = null;
   thumbsRunning = true; // assume running until status confirms
@@ -736,9 +848,17 @@ export class SettingsComponent implements OnInit {
     this.api.getScanStatus().subscribe({ next: (s) => { this.scanStatus = s; this.cdr.detectChanges(); } });
     this.api.getCleanupLog().subscribe({ next: (items) => { this.cleanupItems = items; this.cdr.detectChanges(); } });
     this.refreshDevices();
-    this.settingsService.settings$.subscribe((s) => { this.settings = s; this.cdr.detectChanges(); });
+    this.settingsService.settings$.subscribe((s) => {
+      this.settings = s;
+      // Convert "YYYY-MM-DD" stored in app_settings → "YYYY-MM" for the
+      // <input type="month"> binding. Empty string means "no bound".
+      this.tvFromMonth = (s['tv_from_date'] ?? '').slice(0, 7);
+      this.tvToMonth = (s['tv_to_date'] ?? '').slice(0, 7);
+      this.cdr.detectChanges();
+    });
     this.refreshEmbeddingStatus();
     this.refreshGpsStatus();
+    this.refreshDatesStatus();
     this.refreshThumbsStatus();
     this.refreshFaceStatus();
     this.api.getCronStatus().subscribe({ next: (s) => { this.cronStatus = s; this.cdr.detectChanges(); } });
@@ -775,6 +895,30 @@ export class SettingsComponent implements OnInit {
     this.settingsService.set('trash_retention_days', String(days));
   }
 
+  /** Persist tv_from_date as the first day of the chosen month (YYYY-MM-01). */
+  onTvFromChange(event: Event): void {
+    const v = (event.target as HTMLInputElement).value;
+    this.settingsService.set('tv_from_date', v ? `${v}-01` : '');
+  }
+
+  /** Persist tv_to_date as the last day of the chosen month. */
+  onTvToChange(event: Event): void {
+    const v = (event.target as HTMLInputElement).value;
+    if (!v) {
+      this.settingsService.set('tv_to_date', '');
+      return;
+    }
+    // Compute end-of-month for inclusive upper bound (e.g. "2024-12" → "2024-12-31")
+    const [y, m] = v.split('-').map((s) => parseInt(s, 10));
+    const lastDay = new Date(y, m, 0).getDate();
+    this.settingsService.set('tv_to_date', `${v}-${String(lastDay).padStart(2, '0')}`);
+  }
+
+  clearTvDateRange(): void {
+    this.settingsService.set('tv_from_date', '');
+    this.settingsService.set('tv_to_date', '');
+  }
+
   private embeddingPollTimer: ReturnType<typeof setInterval> | null = null;
 
   private refreshEmbeddingStatus(): void {
@@ -804,6 +948,21 @@ export class SettingsComponent implements OnInit {
       if (!s.running && this.gpsPollTimer) {
         clearInterval(this.gpsPollTimer);
         this.gpsPollTimer = null;
+      }
+      this.cdr.detectChanges();
+    }});
+  }
+
+  private refreshDatesStatus(): void {
+    this.api.getRescanDatesStatus().subscribe({ next: (s) => {
+      this.datesStatus = s;
+      this.datesRunning = s.running;
+      if (s.running && !this.datesPollTimer) {
+        this.datesPollTimer = setInterval(() => this.refreshDatesStatus(), 3000);
+      }
+      if (!s.running && this.datesPollTimer) {
+        clearInterval(this.datesPollTimer);
+        this.datesPollTimer = null;
       }
       this.cdr.detectChanges();
     }});
@@ -850,6 +1009,24 @@ export class SettingsComponent implements OnInit {
         this.gpsRunning = false;
         if (this.gpsPollTimer) { clearInterval(this.gpsPollTimer); this.gpsPollTimer = null; }
         this.refreshGpsStatus();
+      },
+    });
+  }
+
+  rescanDates(): void {
+    this.datesRunning = true;
+    this.api.rescanDates().subscribe();
+    if (!this.datesPollTimer) {
+      this.datesPollTimer = setInterval(() => this.refreshDatesStatus(), 3000);
+    }
+  }
+
+  cancelDatesScan(): void {
+    this.api.cancelRescanDates().subscribe({
+      next: () => {
+        this.datesRunning = false;
+        if (this.datesPollTimer) { clearInterval(this.datesPollTimer); this.datesPollTimer = null; }
+        this.refreshDatesStatus();
       },
     });
   }
@@ -986,12 +1163,45 @@ export class SettingsComponent implements OnInit {
 
   runClustering(): void {
     this.clusteringRunning = true;
-    this.api.triggerFaceClustering().subscribe({
-      next: () => {
-        this.clusteringRunning = false;
-        this.cdr.detectChanges();
+    this.clusteringResult = null;
+    if (this.clusteringResultTimer) {
+      clearTimeout(this.clusteringResultTimer);
+      this.clusteringResultTimer = null;
+    }
+
+    // Snapshot people-list before clustering. We include ignored people so a
+    // status flip during the request can't make the count drift. The delta in
+    // people count = clusters created; the delta in summed photo_count =
+    // photos newly attributed to a known person via this run.
+    this.api.getPeople(true).subscribe({
+      next: (before) => {
+        const beforeCount = before.length;
+        const beforePhotos = before.reduce((sum, p) => sum + (p.photo_count ?? 0), 0);
+
+        this.api.triggerFaceClustering().subscribe({
+          next: () => {
+            this.api.getPeople(true).subscribe({
+              next: (after) => {
+                const afterPhotos = after.reduce((sum, p) => sum + (p.photo_count ?? 0), 0);
+                this.clusteringResult = {
+                  newPeople: Math.max(0, after.length - beforeCount),
+                  photosCovered: Math.max(0, afterPhotos - beforePhotos),
+                };
+                this.clusteringRunning = false;
+                this.cdr.detectChanges();
+                this.clusteringResultTimer = setTimeout(() => {
+                  this.clusteringResult = null;
+                  this.clusteringResultTimer = null;
+                  this.cdr.detectChanges();
+                }, 15000);
+              },
+              error: () => { this.clusteringRunning = false; this.cdr.detectChanges(); },
+            });
+          },
+          error: () => { this.clusteringRunning = false; this.cdr.detectChanges(); },
+        });
       },
-      error: () => { this.clusteringRunning = false; },
+      error: () => { this.clusteringRunning = false; this.cdr.detectChanges(); },
     });
   }
 

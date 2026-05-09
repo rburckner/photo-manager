@@ -29,7 +29,7 @@ Self-hosted photo management system for ~120k family photos/videos (672GB) on a 
 │  │         │  │  trash purge│  │                │      │
 │  └─────────┘  └─────────────┘  └────────────────┘      │
 │                                                         │
-│  Worker thread (face-api.js) — keeps API responsive     │
+│  Worker thread (@vladmandic/face-api + tfjs-node C++)   │
 │  during CPU-heavy face detection batches                │
 ├─────────────────────────────────────────────────────────┤
 │  Volumes:                                               │
@@ -40,18 +40,18 @@ Self-hosted photo management system for ~120k family photos/videos (672GB) on a 
 
 ## Tech Stack
 
-- **Runtime:** Node.js 22+, TypeScript strict mode, ESM
+- **Runtime:** Node.js **22 LTS** (use nvm; tfjs-node native bindings lag the latest Node — Node 24 has no working ABI), TypeScript strict mode, ESM
 - **Backend:** Fastify 5, better-sqlite3 (WAL mode)
 - **Frontend:** Angular 21, signal-based state, standalone components, lazy-loaded routes
-- **Images:** sharp (HEIC via JPG fallback), exif-reader
+- **Images:** sharp (with native libheif for HEIC/HEIF decode), exif-reader. On-demand HEIC→JPEG transcode in the file-serve route handles browsers that don't render HEIC natively (Chrome/Firefox/Edge); Safari gets the original
 - **Video:** fluent-ffmpeg (thumbnails + probe)
-- **Face detection:** face-api.js + TensorFlow.js, runs in a Node worker thread, DBSCAN clustering
+- **Face detection:** `@vladmandic/face-api` (maintained fork of face-api.js) + `@tensorflow/tfjs-node@4` (libtensorflow C++ backend), runs in a Node worker thread, DBSCAN clustering. The original `face-api.js@0.22` was incompatible with tfjs 4 (`forwardFunc_1` removed in tfjs-core 2+). The C++ backend gives ~70× speedup over the pure-JS fallback (~14 photos/sec vs ~0.2 on AVX512 hardware)
 - **Perceptual hashing:** dHash (sharp resize 9x8 grayscale → 64-bit fingerprint), chunk-bucketing for near-duplicate clusters
 - **Visual similarity:** MobileNet v2 embeddings
 - **Maps:** Leaflet + OpenStreetMap + marker clustering, offline tile cache
 - **TV:** DLNA/UPnP via node-ssdp, fullscreen slideshow mode
 - **PWA:** Angular service worker for shell + a custom service worker (`upload-sync-sw.js`, scope `/upload-sync/`) for Background Sync uploads
-- **Tests:** Vitest (backend); 44+ tests for trash, ingestion, cron auto-purge, perceptual hash
+- **Tests:** Vitest (backend); 105 tests covering trash routes/repo, ingestion, cron auto-purge, walker, scanner, thumbnails, perceptual hash, NAS health, hide-person filtering, Takeout import
 - **CLI:** Commander
 - **Logging:** Pino
 
@@ -88,12 +88,14 @@ src/
 │   │                        # so .trash and .git auto-excluded)
 │   ├── exif.ts              # EXIF extraction
 │   ├── media-info.ts        # MIME detection, video probe
-│   ├── thumbnails.ts        # Thumbnail gen (HEIC fallback)
+│   ├── thumbnails.ts        # Thumbnail gen (sharp/libheif for HEIC)
 │   ├── perceptual-hash.ts   # dHash + Hamming distance + chunk splitting
 │   ├── find-near-duplicates.ts # Chunk-bucket + union-find clustering
 │   ├── faces.ts             # Worker spawning + clustering only (in-process
 │   │                        # path was removed; cron uses runFaceScanWorker)
-│   ├── face-worker.ts       # Node worker thread that runs face-api.js
+│   ├── face-worker.ts       # Worker thread; imports tfjs-node BEFORE
+│   │                        # @vladmandic/face-api so face-api binds to the
+│   │                        # native C++ backend instead of the slow JS fallback
 │   ├── embeddings.ts        # MobileNet visual-similarity embeddings
 │   └── index.ts             # Scan orchestrator (incremental, resumable, batched)
 ├── db/
@@ -246,18 +248,19 @@ docker compose down           # Stop
 
 ## Face Detection
 
-- face-api.js with TensorFlow.js (pure JS, no native bindings required)
+- `@vladmandic/face-api` (maintained fork of `face-api.js`) + `@tensorflow/tfjs-node@4` for the libtensorflow C++ backend (~70× faster than the pure-JS fallback)
 - SSD MobileNet for detection, 128-dim embeddings for recognition
 - DBSCAN clustering groups similar faces into people
-- **Runs in a Node worker thread** (`src/scanner/face-worker.ts`) so the API thread stays responsive during the cron's 10–25s detection batches
+- **Runs in a Node worker thread** (`src/scanner/face-worker.ts`) so the API thread stays responsive during long sweeps. Crucially the worker imports `@tensorflow/tfjs-node` BEFORE `@vladmandic/face-api` — otherwise face-api falls back to the slow pure-JS runtime
 - Three person states:
   - **named** — visible everywhere
-  - **hidden** — filtered from timeline/people, files kept forever (e.g., ex-wife)
+  - **hidden** — filters out every photo containing that person's face from timeline / folders / search / favorites / similar / map / slideshow / stats (per the Settings "Hidden content" override) plus removes the person card from /people
   - **ignored** — removed from People view, photos still show in timeline (strangers)
 - "Manage ignored" toggle to review/reinstate
 - Status buttons toggle (click again to revert to unreviewed)
 - Face scan cancellable from Settings UI
-- Auto-runs after the daily cron re-index (50-photo batch via `runFaceScanWorker`)
+- **Sweep behavior:** the cron runs a bounded 50-photo daily drip via `runFaceScanWorker(..., 50)`. The Settings "Scan for Faces" button calls `runFaceScanWorker(..., 50, /* sweepAll */ true)` which keeps re-fetching the next 50 unscanned photos until the entire backlog is processed (or the user cancels). All other bulk jobs (thumbnails, pHash, GPS, embeddings) already swept the full backlog via different mechanisms — face was the outlier
+- **Dev mode caveat:** `face-worker.ts` is loaded via `new Worker(path)` (not a static import), so tsx's hot-reload doesn't watch it. Edits require a manual backend restart. The dev path in `faces.ts` detects `.ts` source vs compiled `.js` and passes `execArgv: ['--import', 'tsx']` so the worker can load TypeScript directly
 
 ## TV Integration
 
@@ -288,12 +291,14 @@ For first-time setup of a 120k-photo library: **manual triggers are far faster**
 
 ## Target Deployment: Raspberry Pi
 
-- Pi 5 (8GB recommended) — sharp and face-api.js are memory-hungry
-- ARM64 Docker images (`linux/arm64`)
+- Pi 5 (8GB recommended) — sharp and the tfjs-node C++ backend are memory-hungry
+- **Node 22 LTS** (not 24) — `@tensorflow/tfjs-node@4` ships napi-v8 prebuilds that don't load on Node 24. Pi base image must use Node 22.
+- ARM64 Docker images (`linux/arm64`); cross-build verified via `./scripts/test-arm64-build.sh --smoke`
 - SQLite — no PostgreSQL overhead
 - Thumbnail cache on USB SSD to avoid SD card wear
-- Tailscale for remote access (no port forwarding)
-- PWA installable to phone home screen
+- Tailscale for remote access (no port forwarding); `tailscale serve --https=443 http://localhost:80` provides automatic Let's Encrypt certs at a `*.ts.net` URL — required for PWA install on phones (HTTP isn't a secure context for service workers)
+- PWA installable to phone home screen — install from the HTTPS tailnet URL so the same install works on LAN and remote
+- Full deploy procedure: see `docs/pi-deployment.md`
 
 ## Future / Not Yet Implemented
 

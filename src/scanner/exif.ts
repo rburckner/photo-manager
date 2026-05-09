@@ -5,7 +5,12 @@ import { getLogger } from '../shared/logger.js';
 
 /**
  * Extracts EXIF metadata from an image file using sharp + exif-reader.
- * Returns null for files without EXIF data (never throws).
+ * Returns a result with all-null fields if extraction fails (never throws).
+ *
+ * Historical note: a HEIC-sibling fallback used to live here for the era
+ * when JPG-with-HEIC-twin pairs existed in the library. After those JPG
+ * twins were staged out (May 2026 cleanup) the fallback became dead code
+ * and was removed.
  */
 export async function extractExif(filePath: string): Promise<ExifData> {
   const log = getLogger();

@@ -1,10 +1,9 @@
 import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import { mkdirSync, existsSync } from 'node:fs';
-import { join, dirname, extname } from 'node:path';
+import { join, dirname } from 'node:path';
 import { getLogger } from '../shared/logger.js';
-
-const HEIC_EXTENSIONS = new Set(['.heic', '.heif']);
+import { decodeHeicToRaw, sharpFromDecoded, isHeicDecodeFailure } from './heic-fallback.js';
 
 export interface ThumbnailOptions {
   size: number;
@@ -18,6 +17,10 @@ export interface ThumbnailOptions {
  *
  * Thumbnails are stored in a 2-level hash directory structure:
  *   {outputDir}/{hash[0:2]}/{hash}.jpg
+ *
+ * Historical note: a JPG-sibling fallback used to live here for HEIC files
+ * whose libheif decode failed. After the JPG twins were staged out
+ * (May 2026 cleanup) the fallback became dead code and was removed.
  */
 export async function generateThumbnail(
   filePath: string,
@@ -42,24 +45,7 @@ export async function generateThumbnail(
     if (isVideo) {
       await generateVideoThumbnail(filePath, thumbAbsPath, options.size);
     } else {
-      try {
-        await generateImageThumbnail(filePath, thumbAbsPath, options.size, options.quality);
-      } catch (err) {
-        // HEIC decode may fail if system libheif plugins are missing.
-        // Fall back to the matching JPG if one exists in the same directory.
-        const ext = extname(filePath).toLowerCase();
-        if (HEIC_EXTENSIONS.has(ext)) {
-          const jpgPath = filePath.slice(0, -ext.length) + '.jpg';
-          if (existsSync(jpgPath)) {
-            log.debug({ filePath }, 'HEIC failed, falling back to JPG for thumbnail');
-            await generateImageThumbnail(jpgPath, thumbAbsPath, options.size, options.quality);
-          } else {
-            throw err;
-          }
-        } else {
-          throw err;
-        }
-      }
+      await generateImageThumbnail(filePath, thumbAbsPath, options.size, options.quality);
     }
     return thumbRelPath;
   } catch (err) {
@@ -74,11 +60,24 @@ async function generateImageThumbnail(
   size: number,
   quality: number,
 ): Promise<void> {
-  await sharp(inputPath)
-    .rotate() // Auto-rotate based on EXIF orientation
-    .resize(size, size, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality })
-    .toFile(outputPath);
+  try {
+    await sharp(inputPath)
+      .rotate() // Auto-rotate based on EXIF orientation
+      .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality })
+      .toFile(outputPath);
+  } catch (err) {
+    // Sharp's prebuilt libheif lacks the HEVC plugin (Apple's iPhone format).
+    // Fall back to heic-decode (WASM libheif port with HEVC) for the decode,
+    // then continue with sharp for resize + JPEG encode.
+    if (!isHeicDecodeFailure(err)) throw err;
+    const decoded = await decodeHeicToRaw(inputPath);
+    await sharpFromDecoded(decoded)
+      .rotate()
+      .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality })
+      .toFile(outputPath);
+  }
 }
 
 function generateVideoThumbnail(

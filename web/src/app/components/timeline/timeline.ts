@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, ElementRef, ViewChild, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { SelectionService } from '../../services/selection.service';
 import { FilterService } from '../../services/filter.service';
@@ -11,7 +12,7 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
 @Component({
   selector: 'app-timeline',
   standalone: true,
-  imports: [CommonModule, FormsModule, LightboxComponent, ThumbSizeSliderComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LightboxComponent, ThumbSizeSliderComponent],
   template: `
     <div class="timeline-container">
       <!-- Date range filter bar -->
@@ -43,17 +44,17 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
           @if (dateError) {
             <span class="date-error">{{ dateError }}</span>
           }
-          <div class="sort-controls">
-            <select class="sort-select" [value]="sortBy" (change)="onSortChange($event)">
-              <option value="date">Date</option>
-              <option value="name">Name</option>
-              <option value="size">Size</option>
-              <option value="camera">Camera</option>
-            </select>
-            <button class="sort-order" (click)="toggleSortOrder()">
-              {{ sortOrder === 'desc' ? '&#9660;' : '&#9650;' }}
-            </button>
-          </div>
+          <button
+            class="sort-order"
+            (click)="toggleSortOrder()"
+            [title]="sortOrder === 'desc' ? 'Newest first — click for oldest first' : 'Oldest first — click for newest first'"
+          >
+            {{ sortOrder === 'desc' ? '&#9660;' : '&#9650;' }}
+            {{ sortOrder === 'desc' ? 'Newest' : 'Oldest' }}
+          </button>
+          <a routerLink="/fix-dates" class="fix-dates-link" title="Drag photos with bad dates onto a month/year">
+            &#9998; Fix dates
+          </a>
           <app-thumb-size-slider class="header-slider" />
         </div>
 
@@ -158,35 +159,36 @@ import type { TimelineGroup, PhotoSummary, Photo } from '../../models/photo.mode
       flex-shrink: 0;
     }
 
-    .sort-controls {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      margin-left: auto;
-    }
-
-    .sort-select {
-      background: #222;
-      border: 1px solid #444;
-      color: #e0e0e0;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      cursor: pointer;
-
-      &:focus { outline: none; border-color: #666; }
-    }
-
     .sort-order {
       background: #222;
       border: 1px solid #444;
       color: #aaa;
-      padding: 4px 8px;
+      padding: 4px 10px;
       border-radius: 4px;
       cursor: pointer;
       font-size: 0.8rem;
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
 
-      &:hover { background: #333; }
+      &:hover { background: #333; color: #fff; }
+    }
+
+    .fix-dates-link {
+      background: #222;
+      border: 1px solid #444;
+      color: #aaa;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+
+      &:hover { background: #333; color: #fff; }
     }
 
     .date-error {
@@ -352,7 +354,6 @@ export class TimelineComponent implements OnInit, OnDestroy {
   groups: TimelineGroup[] = [];
   loading = false;
   hasMore = true;
-  sortBy = 'date';
   sortOrder: 'asc' | 'desc' = 'desc';
   selectedPhoto: PhotoSummary | null = null;
   selectedPhotoFull!: Photo;
@@ -383,7 +384,6 @@ export class TimelineComponent implements OnInit, OnDestroy {
     if (saved.fromDate) this.fromDate = saved.fromDate;
     if (saved.toDate) this.toDate = saved.toDate;
     if (saved.activeYear) this.activeYear = saved.activeYear;
-    if (saved.sortBy) this.sortBy = saved.sortBy;
     if (saved.sortOrder) this.sortOrder = saved.sortOrder;
 
     // Fetch distinct years from DB (filtered, no bogus dates)
@@ -434,15 +434,9 @@ export class TimelineComponent implements OnInit, OnDestroy {
     return true;
   }
 
-  onSortChange(event: Event): void {
-    this.sortBy = (event.target as HTMLSelectElement).value;
-    this.filterService.setSort(this.sortBy, this.sortOrder);
-    this.resetAndReload();
-  }
-
   toggleSortOrder(): void {
     this.sortOrder = this.sortOrder === 'desc' ? 'asc' : 'desc';
-    this.filterService.setSort(this.sortBy, this.sortOrder);
+    this.filterService.setSort('date', this.sortOrder);
     this.resetAndReload();
   }
 
@@ -483,7 +477,7 @@ export class TimelineComponent implements OnInit, OnDestroy {
       before = d.toISOString();
     }
 
-    this.api.getTimeline(this.currentPage, this.pageSize, after, before).subscribe({
+    this.api.getTimeline(this.currentPage, this.pageSize, after, before, this.sortOrder).subscribe({
       next: (response) => {
         for (const newGroup of response.groups) {
           const existing = this.groups.find((g) => g.date === newGroup.date);

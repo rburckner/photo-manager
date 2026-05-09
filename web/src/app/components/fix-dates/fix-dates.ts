@@ -1,5 +1,6 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { ThumbSizeSliderComponent } from '../thumb-size-slider/thumb-size-slider';
 import type { Photo } from '../../models/photo.model';
@@ -13,10 +14,11 @@ interface YearMonth {
 @Component({
   selector: 'app-fix-dates',
   standalone: true,
-  imports: [CommonModule, ThumbSizeSliderComponent],
+  imports: [CommonModule, RouterLink, ThumbSizeSliderComponent],
   template: `
     <div class="fix-dates-container">
       <div class="fix-header">
+        <a routerLink="/timeline" class="btn-back" title="Back to Timeline">&larr;</a>
         <h2>Fix Dates</h2>
         <span class="count">{{ photos.length }} photos with bad or missing dates</span>
         <app-thumb-size-slider class="header-slider" />
@@ -94,12 +96,29 @@ interface YearMonth {
       padding: 14px 20px;
       border-bottom: 1px solid #333;
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 12px;
       flex-shrink: 0;
 
       h2 { margin: 0; font-size: 1.1rem; color: #ddd; }
       .count { font-size: 0.8rem; color: #888; }
+    }
+
+    .btn-back {
+      background: #222;
+      border: 1px solid #444;
+      color: #aaa;
+      width: 32px;
+      height: 32px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      &:hover { background: #333; color: #fff; }
     }
 
     .fix-layout {

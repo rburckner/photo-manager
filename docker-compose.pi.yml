@@ -1,0 +1,62 @@
+# Raspberry Pi 5 deployment override.
+#
+# Apply on top of the base compose file:
+#   docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d
+#
+# Required env vars (set in .env on the Pi):
+#   PM_HOST_PHOTOS_DIR   — absolute path to the NAS mount (e.g. /mnt/photos)
+#                          IMPORTANT: must be a system-level mount (cifs in
+#                          /etc/fstab or systemd .mount), NOT a GVFS user mount.
+#   PM_HOST_DATA_DIR     — absolute path on a USB SSD for DB + thumbs + face
+#                          models. Avoid the SD card to spare it from WAL
+#                          write churn (e.g. /mnt/ssd/photo-manager/data)
+#   PM_HOST_INBOX_DIR    — absolute path for the upload inbox (e.g. /mnt/ssd/photo-manager/inbox)
+#
+# Recommended:
+#   PM_ALLOW_REMOTE=true if you'll reach the Pi over Tailscale. Keeps the
+#   destructive trash endpoints local-only regardless.
+
+services:
+  photo-manager:
+    # Use the locally-loaded ARM64 image instead of rebuilding from the
+    # Dockerfile on the Pi. With this set, Compose:
+    #   - uses photo-manager:arm64 if present in the local image store
+    #     (`docker load` puts it there)
+    #   - otherwise falls back to the base compose's `build: .`
+    image: photo-manager:arm64
+
+    # Pin the platform so docker pull / run from a multi-arch registry resolves
+    # to the arm64 image even if the daemon's default differs.
+    platform: linux/arm64
+
+    # Override the named volume from the base compose with a bind mount onto
+    # the SSD. The named volume lives on the SD card by default, which is the
+    # wrong storage for SQLite WAL + thumbnail churn.
+    volumes:
+      - ${PM_HOST_PHOTOS_DIR:?Set PM_HOST_PHOTOS_DIR in .env}:/photos
+      - ${PM_HOST_DATA_DIR:?Set PM_HOST_DATA_DIR in .env (USB SSD path)}:/data
+      - ${PM_HOST_INBOX_DIR:-./inbox}:/inbox
+
+    # Memory ceiling — leaves headroom on an 8 GB Pi for the host OS, Docker,
+    # and any other containers. Drop to 3g on a 4 GB Pi (tight; not recommended).
+    mem_limit: 6g
+    memswap_limit: 6g
+
+    # Cap log size so /var/log doesn't fill the SD card during a long uptime.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    # Match the host's number of cores. Pi 5 has 4. Leaves one core for the OS
+    # under heavy face-detection / embedding bursts.
+    cpus: "3.0"
+
+    # The base compose's restart policy (`unless-stopped`) is correct for a
+    # always-on home server — keep it. Re-stating here for clarity.
+    restart: unless-stopped
+
+# Override declares no top-level `volumes:` block — the base compose's
+# `photo-manager-data` named volume becomes orphaned (harmless; remove with
+# `docker volume rm photo-manager-data` after migrating).

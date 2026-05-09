@@ -28,8 +28,22 @@ export class FaceRepository {
 
   listPeople(includeIgnored: boolean = false): PersonRow[] {
     const where = includeIgnored ? '' : "WHERE status != 'ignored'";
+    // Order priority:
+    //   1. status group: visible first (named/unreviewed), then hidden, then ignored
+    //   2. named before unnamed within each status group
+    //   3. alphabetical by name (case-insensitive)
+    //   4. photo_count DESC as tiebreaker for unnamed clusters
     return this.db.prepare(`
-      SELECT * FROM people ${where} ORDER BY photo_count DESC
+      SELECT * FROM people ${where}
+      ORDER BY
+        CASE
+          WHEN status = 'ignored' THEN 2
+          WHEN status = 'hidden'  THEN 1
+          ELSE 0
+        END,
+        CASE WHEN name IS NULL OR name = '' THEN 1 ELSE 0 END,
+        LOWER(COALESCE(name, '')) ASC,
+        photo_count DESC
     `).all() as PersonRow[];
   }
 
@@ -139,6 +153,35 @@ export class FaceRepository {
     this.db.prepare('DELETE FROM people WHERE id = ?').run(mergeId);
     // Update photo count
     this.updatePersonPhotoCount(keepId);
+  }
+
+  /**
+   * Reassign faces of `fromPersonId` in the given photos to `toPersonId`.
+   *
+   * Handles the "wrongly clustered" case — e.g. clustering merged two
+   * children's faces into one person, and the user wants to split a subset
+   * of those photos out to a different person.
+   *
+   * Updates photo_count on both people. Returns the number of face rows
+   * actually reassigned. If a photo doesn't contain a face linked to
+   * fromPersonId, it's silently skipped (no-op).
+   */
+  reassignFacesInPhotos(fromPersonId: number, toPersonId: number, photoIds: number[]): number {
+    if (photoIds.length === 0 || fromPersonId === toPersonId) return 0;
+
+    const placeholders = photoIds.map(() => '?').join(',');
+    const stmt = this.db.prepare(
+      `UPDATE faces SET person_id = ? WHERE person_id = ? AND photo_id IN (${placeholders})`,
+    );
+
+    const tx = this.db.transaction((): number => {
+      const result = stmt.run(toPersonId, fromPersonId, ...photoIds);
+      this.updatePersonPhotoCount(fromPersonId);
+      this.updatePersonPhotoCount(toPersonId);
+      return result.changes;
+    });
+
+    return tx();
   }
 
   // ── Scan tracking ──
