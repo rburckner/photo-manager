@@ -180,6 +180,17 @@ export class PhotoRepository {
     this.db.prepare('UPDATE photos SET thumbnail_path = ? WHERE id = ?').run(thumbnailPath, id);
   }
 
+  getPhotosWithThumbnailPath(): Array<{ id: number; thumbnail_path: string }> {
+    return this.db.prepare(`
+      SELECT id, thumbnail_path FROM photos
+      WHERE thumbnail_path IS NOT NULL AND deleted_at IS NULL
+    `).all() as Array<{ id: number; thumbnail_path: string }>;
+  }
+
+  clearThumbnailPath(id: number): void {
+    this.db.prepare('UPDATE photos SET thumbnail_path = NULL WHERE id = ?').run(id);
+  }
+
   getPhotosWithoutPerceptualHash(limit: number): Array<{ id: number; file_path: string }> {
     return this.db.prepare(`
       SELECT id, file_path FROM photos
@@ -263,6 +274,81 @@ export class PhotoRepository {
     ).all(limit, offset) as PhotoRow[];
     const total = (this.db.prepare(
       'SELECT count(*) as count FROM photos WHERE is_hidden = 1 AND deleted_at IS NULL',
+    ).get() as { count: number }).count;
+    return { photos, total };
+  }
+
+  /**
+   * Score each non-trashed image against meme/screenshot heuristics. Higher
+   * = more meme-like. Sum of:
+   *   +2 if no EXIF camera (most camera apps stamp Make+Model)
+   *   +1 if no GPS (most camera apps stamp coords)
+   *   +1 if file_size < 500 KB (memes are small)
+   *   +2 if square aspect (memes/IG posts), +1 if 4:3 portrait or landscape
+   *   +3 if dimensions match a known phone screenshot resolution
+   *
+   * Photos at score >= minScore are returned, sorted by score then id desc.
+   * The score itself is exposed via the meme_score column so the UI can
+   * display confidence to the operator.
+   */
+  getScreenshotCandidates(
+    minScore: number,
+    limit: number,
+    offset: number,
+  ): { photos: Array<PhotoRow & { meme_score: number }>; total: number } {
+    const scoreSql = `(
+      CASE WHEN camera_make IS NULL AND camera_model IS NULL THEN 2 ELSE 0 END +
+      CASE WHEN gps_lat IS NULL THEN 1 ELSE 0 END +
+      CASE WHEN file_size < 500000 THEN 1 ELSE 0 END +
+      CASE
+        WHEN width IS NULL OR height IS NULL OR width = 0 OR height = 0 THEN 0
+        WHEN ABS(CAST(width AS REAL) / height - 1.0) < 0.05 THEN 2
+        WHEN ABS(CAST(width AS REAL) / height - 1.333) < 0.05
+          OR ABS(CAST(height AS REAL) / width - 1.333) < 0.05 THEN 1
+        ELSE 0
+      END +
+      CASE
+        WHEN (width = 1080 AND (height = 1920 OR height = 2400 OR height = 2160))
+          OR (width = 1170 AND height = 2532)
+          OR (width = 1284 AND height = 2778)
+          OR (width = 1242 AND height = 2688)
+          OR (width = 750  AND height = 1334)
+          OR (width = 828  AND height = 1792)
+          OR (width = 1125 AND height = 2436)
+          OR (height = 1080 AND (width = 1920 OR width = 2400))
+        THEN 3 ELSE 0
+      END
+    )`;
+    const photos = this.db.prepare(
+      `SELECT *, ${scoreSql} AS meme_score FROM photos
+       WHERE is_video = 0 AND deleted_at IS NULL AND ${scoreSql} >= ?
+       ORDER BY meme_score DESC, id DESC
+       LIMIT ? OFFSET ?`,
+    ).all(minScore, limit, offset) as Array<PhotoRow & { meme_score: number }>;
+    const total = (this.db.prepare(
+      `SELECT count(*) as count FROM photos
+       WHERE is_video = 0 AND deleted_at IS NULL AND ${scoreSql} >= ?`,
+    ).get(minScore) as { count: number }).count;
+    return { photos, total };
+  }
+
+  /**
+   * Active photos that have been face-scanned but have zero detected faces.
+   * Restricted to scanned rows so unprocessed photos don't pollute the list.
+   */
+  getPhotosWithoutPeople(limit: number, offset: number): { photos: PhotoRow[]; total: number } {
+    const where = `
+      WHERE p.deleted_at IS NULL
+        AND EXISTS (SELECT 1 FROM face_scan_status s WHERE s.photo_id = p.id)
+        AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.photo_id = p.id)
+    `;
+    const photos = this.db.prepare(
+      `SELECT p.* FROM photos p ${where}
+       ORDER BY COALESCE(p.date_taken, p.date_modified) DESC
+       LIMIT ? OFFSET ?`,
+    ).all(limit, offset) as PhotoRow[];
+    const total = (this.db.prepare(
+      `SELECT count(*) as count FROM photos p ${where}`,
     ).get() as { count: number }).count;
     return { photos, total };
   }

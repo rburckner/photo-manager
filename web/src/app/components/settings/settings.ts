@@ -348,6 +348,22 @@ import type { CollectionStats } from '../../models/photo.model';
           />
           <span>Show Duplicates view</span>
         </label>
+        <label class="toggle-row">
+          <input
+            type="checkbox"
+            [checked]="settings['show_screenshots_nav'] === 'true'"
+            (change)="toggleSetting('show_screenshots_nav', $event)"
+          />
+          <span>Show Memes &amp; Screenshots view</span>
+        </label>
+        <label class="toggle-row">
+          <input
+            type="checkbox"
+            [checked]="settings['show_no_people_nav'] === 'true'"
+            (change)="toggleSetting('show_no_people_nav', $event)"
+          />
+          <span>Show "Photos without people" view</span>
+        </label>
       </div>
 
       <!-- Privacy / hidden override -->

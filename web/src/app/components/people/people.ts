@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, ChangeDetectorRef, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
@@ -29,7 +29,7 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
         </div>
       </div>
 
-      <div class="face-slider">
+      <div class="face-slider" #faceSlider>
         @for (person of people; track person.id) {
           <div
             class="face-circle"
@@ -422,7 +422,7 @@ import type { Photo, PersonSummary } from '../../models/photo.model';
     }
   `],
 })
-export class PeopleComponent implements OnInit, OnDestroy {
+export class PeopleComponent implements OnInit, OnDestroy, AfterViewInit {
   people: PersonSummary[] = [];
   loading = true;
   showIgnored = false;
@@ -436,6 +436,9 @@ export class PeopleComponent implements OnInit, OnDestroy {
 
   selectedPhoto: Photo | null = null;
   showMergeDropdown = false;
+
+  @ViewChild('faceSlider') faceSliderRef?: ElementRef<HTMLElement>;
+  private faceSliderWheelCleanup?: () => void;
 
   private subs: Subscription[] = [];
 
@@ -462,8 +465,26 @@ export class PeopleComponent implements OnInit, OnDestroy {
     );
   }
 
+  ngAfterViewInit(): void {
+    const el = this.faceSliderRef?.nativeElement;
+    if (!el) return;
+    // Native listener (passive: false) so preventDefault works — Angular
+    // template (wheel) bindings are passive in newer versions.
+    const handler = (event: WheelEvent): void => {
+      if (event.deltaY === 0) return;
+      const atStart = el.scrollLeft <= 0;
+      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+      if ((event.deltaY > 0 && atEnd) || (event.deltaY < 0 && atStart)) return;
+      el.scrollLeft += event.deltaY;
+      event.preventDefault();
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    this.faceSliderWheelCleanup = (): void => { el.removeEventListener('wheel', handler); };
+  }
+
   ngOnDestroy(): void {
     this.subs.forEach((s) => s.unsubscribe());
+    this.faceSliderWheelCleanup?.();
     this.selection.exitSelectionMode();
     this.selection.setCurrentPersonId(null);
   }

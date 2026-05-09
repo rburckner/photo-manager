@@ -130,11 +130,16 @@ import type { Album, PersonSummary } from '../../models/photo.model';
       background: rgba(255,255,255,0.1);
       border: 1px solid rgba(255,255,255,0.2);
       color: #ddd;
-      padding: 5px 12px;
+      height: 32px;
+      padding: 0 12px;
       border-radius: 4px;
       cursor: pointer;
       font-size: 0.8rem;
+      line-height: 1;
       white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      box-sizing: border-box;
 
       &:hover { background: rgba(255,255,255,0.2); }
     }

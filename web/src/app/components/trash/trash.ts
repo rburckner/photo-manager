@@ -28,19 +28,21 @@ import type { Photo } from '../../models/photo.model';
         </div>
       </div>
 
-      <div class="photo-grid" (scroll)="onScroll($event)">
-        @for (photo of photos; track photo.id) {
-          <div class="photo-card" (click)="onPhotoClick(photo)">
-            <img [src]="api.getThumbnailUrl(photo.id)" loading="lazy" (error)="onImageError($event)" />
-            <div class="card-actions" (click)="$event.stopPropagation()">
-              <button class="card-btn" (click)="restoreOne(photo)" title="Restore">&#10227;</button>
-              <button class="card-btn card-btn-danger" (click)="purgeOne(photo)" title="Delete forever">&#10005;</button>
+      <div class="trash-scroll" (scroll)="onScroll($event)">
+        <div class="photo-grid">
+          @for (photo of photos; track photo.id) {
+            <div class="photo-card" (click)="onPhotoClick(photo)">
+              <img [src]="api.getThumbnailUrl(photo.id)" loading="lazy" (error)="onImageError($event)" />
+              <div class="card-actions" (click)="$event.stopPropagation()">
+                <button class="card-btn" (click)="restoreOne(photo)" title="Restore">&#10227;</button>
+                <button class="card-btn card-btn-danger" (click)="purgeOne(photo)" title="Delete forever">&#10005;</button>
+              </div>
+              <div class="trash-date">{{ formatDate(photo.deleted_at) }}</div>
             </div>
-            <div class="trash-date">{{ formatDate(photo.deleted_at) }}</div>
-          </div>
-        }
-        @if (loading) { <div class="grid-loading">Loading...</div> }
-        @if (!loading && photos.length === 0) { <div class="empty">Trash is empty</div> }
+          }
+          @if (loading) { <div class="grid-loading">Loading...</div> }
+          @if (!loading && photos.length === 0) { <div class="empty">Trash is empty</div> }
+        </div>
       </div>
     </div>
 
@@ -69,9 +71,18 @@ import type { Photo } from '../../models/photo.model';
       background: #3a1a1a; border: 1px solid #5a2a2a; color: #e88;
       &:hover:not(:disabled) { background: #4a2a2a; }
     }
+    /* Mirror timeline's pattern: scroll container is a plain block, the
+       grid is a regular block child. Keeps the grid out of the flex layout
+       so aspect-ratio: 1 doesn't pancake the cards (CSS Grid + flex-item +
+       aspect-ratio + CSS-var track size all interact badly). */
+    .trash-scroll {
+      flex: 1;
+      overflow-y: auto;
+    }
     .photo-grid {
-      flex: 1; overflow-y: auto;
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 160px), 1fr)); gap: 4px; align-content: start;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size, 160px), 1fr));
+      gap: 4px;
     }
     .photo-card {
       position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 4px; cursor: pointer; background: #222;

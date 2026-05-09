@@ -76,6 +76,14 @@ export const routes: Routes = [
         loadComponent: () => import('./components/trash/trash').then((m) => m.TrashComponent),
       },
       {
+        path: 'screenshots',
+        loadComponent: () => import('./components/screenshots/screenshots').then((m) => m.ScreenshotsComponent),
+      },
+      {
+        path: 'no-people',
+        loadComponent: () => import('./components/no-people/no-people').then((m) => m.NoPeopleComponent),
+      },
+      {
         path: 'pair',
         loadComponent: () => import('./components/pair/pair').then((m) => m.PairComponent),
       },

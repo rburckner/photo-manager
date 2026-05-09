@@ -9,6 +9,7 @@ import { createMoveRedundantJpgsCommand } from './commands/move-redundant-jpgs.j
 import { createPruneMissingCommand } from './commands/prune-missing.js';
 import { createPurgeStagedJpgRowsCommand } from './commands/purge-staged-jpg-rows.js';
 import { createResetFaceDataCommand } from './commands/reset-face-data.js';
+import { createReconcileThumbnailsCommand } from './commands/reconcile-thumbnails.js';
 import { getDb, closeDb } from '../db/connection.js';
 import { runMigrations } from '../db/migrate.js';
 import { PhotoRepository } from '../db/repositories/photo.repository.js';
@@ -37,6 +38,7 @@ program.addCommand(createMoveRedundantJpgsCommand());
 program.addCommand(createPruneMissingCommand());
 program.addCommand(createPurgeStagedJpgRowsCommand());
 program.addCommand(createResetFaceDataCommand());
+program.addCommand(createReconcileThumbnailsCommand());
 
 // ── migrate command ──
 program

@@ -94,6 +94,22 @@ import { SettingsService } from '../../services/settings.service';
               }
             </a>
           </li>
+          @if (settingsLoaded && showScreenshots) {
+            <li>
+              <a routerLink="/screenshots" routerLinkActive="active">
+                <span class="icon">&#128247;</span>
+                Memes &amp; Screenshots
+              </a>
+            </li>
+          }
+          @if (settingsLoaded && showNoPeople) {
+            <li>
+              <a routerLink="/no-people" routerLinkActive="active">
+                <span class="icon">&#127748;</span>
+                Photos w/o People
+              </a>
+            </li>
+          }
           @if (deviceAuth.isPaired()) {
             <li>
               <a routerLink="/upload" routerLinkActive="active">
@@ -296,6 +312,8 @@ import { SettingsService } from '../../services/settings.service';
 })
 export class ShellComponent implements OnInit, OnDestroy {
   showFolders = true;
+  showScreenshots = false;
+  showNoPeople = false;
   showHiddenOverride = false;
   settingsLoaded = false;
   trashCount = 0;
@@ -317,6 +335,9 @@ export class ShellComponent implements OnInit, OnDestroy {
       this.settingsService.settings$.subscribe((settings) => {
         if (Object.keys(settings).length > 0) {
           this.showFolders = settings['show_folders_nav'] !== 'false';
+          // Default hidden — user opts in from Settings.
+          this.showScreenshots = settings['show_screenshots_nav'] === 'true';
+          this.showNoPeople = settings['show_no_people_nav'] === 'true';
           this.showHiddenOverride = settings['show_hidden'] === 'true';
           this.settingsLoaded = true;
           this.cdr.detectChanges();

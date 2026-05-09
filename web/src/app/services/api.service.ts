@@ -122,6 +122,24 @@ export class ApiService {
     return this.http.post<{ ok: boolean }>(`${this.baseUrl}/photos/bulk/hide`, { photo_ids: ids, hidden });
   }
 
+  getScreenshotCandidates(page: number = 1, limit: number = 60, minScore: number = 5): Observable<PaginatedResponse<Photo & { meme_score: number }> & { minScore: number }> {
+    const params = new HttpParams()
+      .set('page', page.toString())
+      .set('limit', limit.toString())
+      .set('min_score', minScore.toString());
+    return this.http.get<PaginatedResponse<Photo & { meme_score: number }> & { minScore: number }>(
+      `${this.baseUrl}/photos/screenshots`,
+      { params },
+    );
+  }
+
+  getPhotosWithoutPeople(page: number = 1, limit: number = 60): Observable<PaginatedResponse<Photo>> {
+    const params = new HttpParams()
+      .set('page', page.toString())
+      .set('limit', limit.toString());
+    return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/photos/no-people`, { params });
+  }
+
   getHiddenPhotos(page: number = 1, limit: number = 50): Observable<PaginatedResponse<Photo>> {
     const params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
     return this.http.get<PaginatedResponse<Photo>>(`${this.baseUrl}/photos/hidden`, { params });
@@ -347,7 +365,7 @@ export class ApiService {
   }
 
   // Map & Search
-  getMapPoints(limit: number = 5000): Observable<MapPoint[]> {
+  getMapPoints(limit: number = 100000): Observable<MapPoint[]> {
     return this.http.get<MapPoint[]>(`${this.baseUrl}/photos/map`, { params: { limit: limit.toString() } });
   }
 

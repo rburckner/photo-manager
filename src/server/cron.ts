@@ -209,6 +209,25 @@ export function startCronReindex(
         log.info({ newFiles: result.processedFiles }, 'New files indexed');
       }
 
+      // Reconcile DB ↔ disk: NULL thumbnail_path for any row whose file is
+      // missing so the backfill below regenerates it. Self-heals drift from
+      // manual cleanup, partial runs, or mass deletion.
+      try {
+        const { reconcileThumbnails } = await import('../scanner/reconcile-thumbnails.js');
+        const reconciled = reconcileThumbnails(photoRepo, config.thumbnailDir);
+        if (reconciled.cleared > 0) {
+          log.info(
+            { cleared: reconciled.cleared, checked: reconciled.checked },
+            'Thumbnail paths reconciled (missing files → NULL)',
+          );
+        }
+      } catch (recErr) {
+        log.warn(
+          { error: recErr instanceof Error ? recErr.message : String(recErr) },
+          'Thumbnail reconciliation failed',
+        );
+      }
+
       // Generate missing thumbnails (videos + any failed images)
       try {
         const { generateThumbnail } = await import('../scanner/thumbnails.js');

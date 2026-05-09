@@ -695,6 +695,32 @@ export async function photoRoutes(
     return { photos, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   });
 
+  // GET /api/photos/screenshots — heuristic-scored meme/screenshot candidates
+  app.get<{ Querystring: { page?: string; limit?: string; min_score?: string } }>(
+    '/api/photos/screenshots',
+    async (request) => {
+      const page = Math.max(1, parseInt(request.query.page ?? '1', 10));
+      const limit = Math.min(200, parseInt(request.query.limit ?? '60', 10));
+      const minScore = Math.max(0, Math.min(7, parseInt(request.query.min_score ?? '5', 10)));
+      const offset = (page - 1) * limit;
+      const { photos, total } = photoRepo.getScreenshotCandidates(minScore, limit, offset);
+      return {
+        photos,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+        minScore,
+      };
+    },
+  );
+
+  // GET /api/photos/no-people — face-scanned photos with zero detected faces
+  app.get<{ Querystring: { page?: string; limit?: string } }>('/api/photos/no-people', async (request) => {
+    const page = Math.max(1, parseInt(request.query.page ?? '1', 10));
+    const limit = Math.min(200, parseInt(request.query.limit ?? '60', 10));
+    const offset = (page - 1) * limit;
+    const { photos, total } = photoRepo.getPhotosWithoutPeople(limit, offset);
+    return { photos, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  });
+
   // POST /api/photos/bulk/set-date — bulk update date_taken
   app.post<{ Body: { photo_ids: number[]; date: string } }>('/api/photos/bulk/set-date', async (request, reply) => {
     const { photo_ids, date } = request.body;
@@ -796,7 +822,7 @@ export async function photoRoutes(
   app.get<{
     Querystring: { limit?: string };
   }>('/api/photos/map', async (request) => {
-    const limit = Math.min(10000, parseInt(request.query.limit ?? '5000', 10));
+    const limit = parseInt(request.query.limit ?? '5000', 10);
     return photoRepo.getMapPoints(limit);
   });
 
