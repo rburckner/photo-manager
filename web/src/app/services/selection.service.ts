@@ -39,6 +39,20 @@ export class SelectionService {
     return this.currentAlbumIdSubject.value;
   }
 
+  // True while the user is on /trash. Selection bar reads this to show
+  // the "Restore" action and hide actions that don't apply to trashed
+  // photos (Delete, Hide, Set Date, Add to Album, etc.).
+  private readonly currentViewIsTrashSubject = new BehaviorSubject<boolean>(false);
+  readonly currentViewIsTrash$ = this.currentViewIsTrashSubject.asObservable();
+
+  setCurrentViewIsTrash(v: boolean): void {
+    this.currentViewIsTrashSubject.next(v);
+  }
+
+  get currentViewIsTrash(): boolean {
+    return this.currentViewIsTrashSubject.value;
+  }
+
   // Tracks the currently-open person on /people. Selection bar reads this to
   // show the "Reassign to..." action and lightbox shows the per-photo
   // reassign button. null when not inside a person detail view.

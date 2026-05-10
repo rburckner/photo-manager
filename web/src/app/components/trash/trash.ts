@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Subscription } from 'rxjs';
 import { ApiService } from '../../services/api.service';
 import { SelectionService } from '../../services/selection.service';
 import { ToastService } from '../../services/toast.service';
@@ -31,7 +32,15 @@ import type { Photo } from '../../models/photo.model';
       <div class="trash-scroll" (scroll)="onScroll($event)">
         <div class="photo-grid">
           @for (photo of photos; track photo.id) {
-            <div class="photo-card" (click)="onPhotoClick(photo)">
+            <div
+              class="photo-card"
+              [class.selectable]="selection.isSelectingSignal()"
+              [class.selected]="selection.selectedIdsSignal().has(photo.id)"
+              (click)="onPhotoClick(photo, $event)"
+            >
+              @if (selection.isSelectingSignal()) {
+                <div class="select-check">&#10003;</div>
+              }
               <img [src]="api.getThumbnailUrl(photo.id)" loading="lazy" (error)="onImageError($event)" />
               <div class="card-actions" (click)="$event.stopPropagation()">
                 <button class="card-btn" (click)="restoreOne(photo)" title="Restore">&#10227;</button>
@@ -89,7 +98,16 @@ import type { Photo } from '../../models/photo.model';
       img { width: 100%; height: 100%; object-fit: cover; opacity: 0.7; transition: opacity 0.15s; }
       &:hover img { opacity: 1; }
       &:hover .card-actions { opacity: 1; }
+      &.selected { outline: 3px solid #4af; outline-offset: -3px; }
     }
+    .select-check {
+      position: absolute; top: 6px; left: 6px;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: rgba(0,0,0,0.6); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; z-index: 2;
+    }
+    .photo-card.selected .select-check { background: #4af; }
     .card-actions {
       position: absolute; top: 4px; right: 4px; display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s;
     }
@@ -120,22 +138,31 @@ export class TrashComponent implements OnInit, OnDestroy {
   page = 1;
   hasMore = true;
   selectedPhoto: Photo | null = null;
+  private lastClickedId: number | null = null;
+  private readonly subs: Subscription[] = [];
 
   constructor(
     public readonly api: ApiService,
-    private readonly selection: SelectionService,
+    public readonly selection: SelectionService,
     private readonly toast: ToastService,
     private readonly cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
     this.selection.exitSelectionMode();
+    this.selection.setCurrentViewIsTrash(true);
     this.load();
     this.loadStats();
+    // Reload after a bulk action (restore) fires from the selection bar.
+    this.subs.push(
+      this.selection.refresh$.subscribe(() => this.reload()),
+    );
   }
 
   ngOnDestroy(): void {
-    // no-op
+    this.subs.forEach((s) => s.unsubscribe());
+    this.selection.exitSelectionMode();
+    this.selection.setCurrentViewIsTrash(false);
   }
 
   load(): void {
@@ -177,7 +204,27 @@ export class TrashComponent implements OnInit, OnDestroy {
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 500) this.load();
   }
 
-  onPhotoClick(photo: Photo): void {
+  onPhotoClick(photo: Photo, event: MouseEvent): void {
+    if (event.ctrlKey || event.metaKey) {
+      this.selection.toggle(photo.id);
+      this.lastClickedId = photo.id;
+      return;
+    }
+    if (event.shiftKey && this.lastClickedId !== null && this.selection.isSelecting) {
+      const startIdx = this.photos.findIndex((p) => p.id === this.lastClickedId);
+      const endIdx = this.photos.findIndex((p) => p.id === photo.id);
+      if (startIdx >= 0 && endIdx >= 0) {
+        const from = Math.min(startIdx, endIdx);
+        const to = Math.max(startIdx, endIdx);
+        this.selection.selectAll(this.photos.slice(from, to + 1).map((p) => p.id));
+      }
+      return;
+    }
+    if (this.selection.isSelecting) {
+      this.selection.toggle(photo.id);
+      this.lastClickedId = photo.id;
+      return;
+    }
     this.selectedPhoto = photo;
   }
 

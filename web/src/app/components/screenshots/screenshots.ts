@@ -138,6 +138,7 @@ export class ScreenshotsComponent implements OnInit, OnDestroy {
   page = 1;
   hasMore = true;
   selectedPhoto: Photo | null = null;
+  private lastClickedId: number | null = null;
 
   private readonly subs: Subscription[] = [];
 
@@ -194,10 +195,22 @@ export class ScreenshotsComponent implements OnInit, OnDestroy {
   onPhotoClick(photo: Photo, event: MouseEvent): void {
     if (event.ctrlKey || event.metaKey) {
       this.selection.toggle(photo.id);
+      this.lastClickedId = photo.id;
+      return;
+    }
+    if (event.shiftKey && this.lastClickedId !== null && this.selection.isSelecting) {
+      const startIdx = this.photos.findIndex((p) => p.id === this.lastClickedId);
+      const endIdx = this.photos.findIndex((p) => p.id === photo.id);
+      if (startIdx >= 0 && endIdx >= 0) {
+        const from = Math.min(startIdx, endIdx);
+        const to = Math.max(startIdx, endIdx);
+        this.selection.selectAll(this.photos.slice(from, to + 1).map((p) => p.id));
+      }
       return;
     }
     if (this.selection.isSelecting) {
       this.selection.toggle(photo.id);
+      this.lastClickedId = photo.id;
       return;
     }
     this.selectedPhoto = photo;

@@ -20,74 +20,80 @@ import type { Album, PersonSummary } from '../../models/photo.model';
           <button class="bar-btn" (click)="clearSelection()">Clear</button>
         </div>
         <div class="selection-actions">
-          <button class="bar-btn" (click)="bulkFavorite(true)">&#9733; Favorite</button>
-          <button class="bar-btn" (click)="bulkFavorite(false)">&#9734; Unfavorite</button>
-          <button class="bar-btn" (click)="exportSelected()">&#8615; Export Zip</button>
-          @if (isHiddenView) {
-            <button class="bar-btn" (click)="bulkHide(false)">&#128065; Unhide</button>
+          @if (isTrashView) {
+            <!-- Trash view: only actions that make sense for already-trashed photos. -->
+            <button class="bar-btn" (click)="exportSelected()">&#8615; Export Zip</button>
+            <button class="bar-btn btn-restore" (click)="bulkRestore()">&#10227; Restore</button>
           } @else {
-            <button class="bar-btn" (click)="bulkHide(true)">&#128065; Hide</button>
-          }
-          <div class="date-picker-wrap">
-            <button class="bar-btn" (click)="showDatePicker = !showDatePicker">&#128197; Set Date</button>
-            @if (showDatePicker) {
-              <div class="dropdown-menu">
-                <input
-                  type="month"
-                  class="date-pick-input"
-                  (change)="bulkSetDate($event)"
-                />
-              </div>
+            <button class="bar-btn" (click)="bulkFavorite(true)">&#9733; Favorite</button>
+            <button class="bar-btn" (click)="bulkFavorite(false)">&#9734; Unfavorite</button>
+            <button class="bar-btn" (click)="exportSelected()">&#8615; Export Zip</button>
+            @if (isHiddenView) {
+              <button class="bar-btn" (click)="bulkHide(false)">&#128065; Unhide</button>
+            } @else {
+              <button class="bar-btn" (click)="bulkHide(true)">&#128065; Hide</button>
             }
-          </div>
-          <div class="album-dropdown">
-            <button class="bar-btn" (click)="toggleAlbumDropdown()">+ Add to Album</button>
-            @if (showAlbumDropdown) {
-              <div class="dropdown-menu">
-                @for (album of albums; track album.id) {
-                  <button class="dropdown-item" (click)="addToAlbum(album.id)">
-                    {{ album.name }}
-                  </button>
-                }
-                @if (albums.length === 0) {
-                  <div class="dropdown-empty">No albums</div>
-                }
-              </div>
-            }
-          </div>
-          @if (activeAlbumId) {
-            <button class="bar-btn btn-danger" (click)="removeFromAlbum()">Remove from Album</button>
-          }
-          @if (activePersonId) {
-            <div class="reassign-dropdown">
-              <button class="bar-btn" (click)="toggleReassignDropdown()">&#8644; Reassign to&hellip;</button>
-              @if (showReassignDropdown) {
+            <div class="date-picker-wrap">
+              <button class="bar-btn" (click)="showDatePicker = !showDatePicker">&#128197; Set Date</button>
+              @if (showDatePicker) {
                 <div class="dropdown-menu">
-                  <div class="dropdown-section">Existing people</div>
-                  @for (person of getReassignTargets(); track person.id) {
-                    <button class="dropdown-item" (click)="reassignToExisting(person.id, person.name)">
-                      {{ person.name ?? 'Unknown' }} ({{ person.photo_count }})
-                    </button>
-                  }
-                  @if (getReassignTargets().length === 0) {
-                    <div class="dropdown-empty">No other people</div>
-                  }
-                  <div class="dropdown-section">New person</div>
-                  <div class="new-person-row">
-                    <input
-                      type="text"
-                      class="new-person-input"
-                      placeholder="Name (optional)"
-                      [(ngModel)]="newPersonName"
-                      (keydown.enter)="splitToNewPerson()"
-                    />
-                    <button class="dropdown-item-action" (click)="splitToNewPerson()">Create &amp; move</button>
-                  </div>
+                  <input
+                    type="month"
+                    class="date-pick-input"
+                    (change)="bulkSetDate($event)"
+                  />
                 </div>
               }
             </div>
+            <div class="album-dropdown">
+              <button class="bar-btn" (click)="toggleAlbumDropdown()">+ Add to Album</button>
+              @if (showAlbumDropdown) {
+                <div class="dropdown-menu">
+                  @for (album of albums; track album.id) {
+                    <button class="dropdown-item" (click)="addToAlbum(album.id)">
+                      {{ album.name }}
+                    </button>
+                  }
+                  @if (albums.length === 0) {
+                    <div class="dropdown-empty">No albums</div>
+                  }
+                </div>
+              }
+            </div>
+            @if (activeAlbumId) {
+              <button class="bar-btn btn-danger" (click)="removeFromAlbum()">Remove from Album</button>
+            }
+            @if (activePersonId) {
+              <div class="reassign-dropdown">
+                <button class="bar-btn" (click)="toggleReassignDropdown()">&#8644; Reassign to&hellip;</button>
+                @if (showReassignDropdown) {
+                  <div class="dropdown-menu">
+                    <div class="dropdown-section">Existing people</div>
+                    @for (person of getReassignTargets(); track person.id) {
+                      <button class="dropdown-item" (click)="reassignToExisting(person.id, person.name)">
+                        {{ person.name ?? 'Unknown' }} ({{ person.photo_count }})
+                      </button>
+                    }
+                    @if (getReassignTargets().length === 0) {
+                      <div class="dropdown-empty">No other people</div>
+                    }
+                    <div class="dropdown-section">New person</div>
+                    <div class="new-person-row">
+                      <input
+                        type="text"
+                        class="new-person-input"
+                        placeholder="Name (optional)"
+                        [(ngModel)]="newPersonName"
+                        (keydown.enter)="splitToNewPerson()"
+                      />
+                      <button class="dropdown-item-action" (click)="splitToNewPerson()">Create &amp; move</button>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+            <button class="bar-btn btn-danger" (click)="bulkDelete()">&#128465; Delete</button>
           }
-          <button class="bar-btn btn-danger" (click)="bulkDelete()">&#128465; Delete</button>
         </div>
       </div>
     }
@@ -148,6 +154,13 @@ import type { Album, PersonSummary } from '../../models/photo.model';
       color: #e88;
       border-color: #844;
       &:hover { background: rgba(255,100,100,0.15); }
+    }
+
+    .btn-restore {
+      color: #8c8;
+      border-color: #2a5a2a;
+      background: rgba(40,90,40,0.2);
+      &:hover { background: rgba(60,140,60,0.3); }
     }
 
     .date-picker-wrap, .album-dropdown, .reassign-dropdown {
@@ -256,6 +269,7 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
   peopleList: PersonSummary[] = [];
   newPersonName = '';
   isHiddenView = false;
+  isTrashView = false;
 
   private subs: Subscription[] = [];
 
@@ -297,6 +311,12 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
             next: (people) => { this.peopleList = people; this.cdr.detectChanges(); },
           });
         }
+        this.cdr.detectChanges();
+      }),
+      // Track whether we're on /trash so the bar can show Restore + hide
+      // actions that don't apply to trashed photos.
+      this.selection.currentViewIsTrash$.subscribe((v) => {
+        this.isTrashView = v;
         this.cdr.detectChanges();
       }),
       // Clear selection + close any open dropdowns whenever the user
@@ -439,6 +459,20 @@ export class SelectionBarComponent implements OnInit, OnDestroy {
         this.toast.success(`Removed ${ids.length} ${noun} from album`);
       },
       error: () => this.toast.error('Remove from album failed'),
+    });
+  }
+
+  bulkRestore(): void {
+    const ids = this.selection.ids;
+    if (ids.length === 0) return;
+    this.api.bulkRestore(ids).subscribe({
+      next: (res) => {
+        this.selection.exitSelectionMode();
+        this.selection.notifyRefresh();
+        const noun = res.restored === 1 ? 'photo' : 'photos';
+        this.toast.success(`Restored ${res.restored} ${noun}`);
+      },
+      error: () => this.toast.error('Restore failed'),
     });
   }
 
