@@ -25,7 +25,8 @@ Self-hosted photo management system for ~120k family photos/videos (672GB) on a 
 │  │  :8200  │  │  re-index,  │  │  fs.watch +    │      │
 │  │         │  │  faces (WT),│  │  60s poll;     │      │
 │  │         │  │  pHash, GPS,│  │  inline index  │      │
-│  │         │  │  thumbs,    │  │                │      │
+│  │         │  │  thumb recon│  │                │      │
+│  │         │  │  + backfill,│  │                │      │
 │  │         │  │  trash purge│  │                │      │
 │  └─────────┘  └─────────────┘  └────────────────┘      │
 │                                                         │
@@ -60,19 +61,25 @@ Self-hosted photo management system for ~120k family photos/videos (672GB) on a 
 ```
 src/
 ├── cli/                     # CLI entry + commands
-│   ├── index.ts             # `scan`, `stats`, `migrate`, `ingest`, `import-takeout`, `pair`
+│   ├── index.ts             # `scan`, `stats`, `migrate`, `ingest`, `import-takeout`,
+│   │                        # `pair`, `reset-face-data`, `reconcile-thumbnails`,
+│   │                        # `find-redundant-jpgs`, `move-redundant-jpgs`,
+│   │                        # `prune-missing`, `purge-staged-jpg-rows`
 │   └── commands/            # one file per command
 ├── server/
 │   ├── index.ts             # Fastify server, CORS, local network guard
 │   ├── network-guard.ts     # isPrivateIp + requireLocalNetwork preHandler
-│   ├── cron.ts              # Daily 2 AM: trash auto-purge → re-index → thumbnails
+│   ├── cron.ts              # Daily 2 AM: trash auto-purge → re-index →
+│   │                        #   thumbnail reconcile (NULL paths for missing files)
+│   │                        #   → thumbnail backfill (200/run)
 │   │                        #   → pHash backfill (500/run) → face scan worker (50/run)
 │   │                        #   → embeddings (100/run)
 │   ├── dlna.ts              # DLNA/UPnP server
 │   └── routes/
 │       ├── photos.ts        # Photos CRUD, timeline, search, map, slideshow,
 │       │                    # export, settings, scan/cancel endpoints,
-│       │                    # /duplicates (exact + perceptual)
+│       │                    # /duplicates (exact + perceptual),
+│       │                    # /screenshots (heuristic memes), /no-people
 │       ├── trash.ts         # Trash/restore/purge — local-network-only preHandler
 │       ├── upload.ts        # POST /api/upload + /upload/check (Bearer device auth)
 │       ├── albums.ts        # Albums CRUD, photo management, reorder
@@ -89,6 +96,10 @@ src/
 │   ├── exif.ts              # EXIF extraction
 │   ├── media-info.ts        # MIME detection, video probe
 │   ├── thumbnails.ts        # Thumbnail gen (sharp/libheif for HEIC)
+│   ├── reconcile-thumbnails.ts # NULL thumbnail_path for photos whose file
+│   │                        # is missing on disk; called by CLI + cron
+│   ├── heic-fallback.ts     # Shared sharp+heic-decode WASM fallback used
+│   │                        # by thumbnails.ts and the file-serve route
 │   ├── perceptual-hash.ts   # dHash + Hamming distance + chunk splitting
 │   ├── find-near-duplicates.ts # Chunk-bucket + union-find clustering
 │   ├── faces.ts             # Worker spawning + clustering only (in-process
@@ -101,7 +112,7 @@ src/
 ├── db/
 │   ├── connection.ts
 │   ├── migrate.ts
-│   ├── migrations/          # 001_initial → 011_perceptual_hash
+│   ├── migrations/          # 001_initial → 014_trash_reason
 │   └── repositories/        # photo, album, face, tag, scan-progress
 ├── ingestion/
 │   ├── index.ts             # Inbox watcher + processInbox + ingestBuffer
@@ -125,8 +136,13 @@ web/                          # Angular 21 SPA
 │   │   ├── search/          # Full-text search
 │   │   ├── tags/            # Tag mgmt + browse
 │   │   ├── favorites/       # Starred photos
-│   │   ├── trash/           # Trash grid, restore, empty (uses signals)
+│   │   ├── trash/           # Trash grid; ctrl/shift+click multi-select
+│   │   │                    # with bulk Restore via selection bar
 │   │   ├── duplicates/      # Exact + Near (perceptual) tabs
+│   │   ├── screenshots/     # /screenshots — heuristic-scored meme/screenshot
+│   │   │                    # candidates (default-hidden in nav)
+│   │   ├── no-people/       # /no-people — face-scanned photos with zero
+│   │   │                    # detected faces (default-hidden in nav)
 │   │   ├── stats/           # Collection charts
 │   │   ├── settings/        # Cron, DLNA, faces, GPS, embeddings, ingest,
 │   │   │                    # devices, trash retention, navigation toggles
@@ -169,6 +185,7 @@ web/                          # Angular 21 SPA
 - Photo-grid templates read **selection signals** (`selection.isSelectingSignal()`, `selection.selectedIdsSignal().has(id)`) — the BehaviorSubject path was retained but reading the getter directly in templates triggers `ExpressionChangedAfterItHasBeenCheckedError` in dev mode (commit 97e4275 has the full debug story)
 - Trash and ingestion file ops use atomic `rename()` within the same volume — cross-volume copy is intentionally not supported (would defeat trash's "no extra disk during retention" property)
 - Bulk action UI uses the **toast `withAction()` pattern** for undo — see `bulkDelete` in `selection-bar.ts` for the canonical example
+- The selection bar reads three context observables from `SelectionService` to swap actions: `currentAlbumId$` (shows "Remove from Album"), `currentPersonId$` (shows "Reassign to..."), and `currentViewIsTrash$` (shows "Restore" + hides Delete/Hide/Set-Date/etc. since they don't apply to trashed photos). Components set these in `ngOnInit`/`ngOnDestroy`
 
 ## CLI Commands
 
@@ -179,6 +196,13 @@ npx tsx src/cli/index.ts migrate                  # Run pending DB migrations
 npx tsx src/cli/index.ts ingest                   # Process inbox directory
 npx tsx src/cli/index.ts import-takeout <path>    # Import Google Takeout export
 npx tsx src/cli/index.ts pair                     # Generate 6-digit pairing code
+npx tsx src/cli/index.ts reconcile-thumbnails     # NULL thumbnail_path where file is missing on disk
+                                                  #   (--dry-run for a count without changes)
+npx tsx src/cli/index.ts reset-face-data --yes    # Wipe faces, people, face_scan_status
+npx tsx src/cli/index.ts find-redundant-jpgs      # Find JPG/HEIC pairs with same hash
+npx tsx src/cli/index.ts move-redundant-jpgs      # Atomic-rename redundant JPGs to .staged-jpgs/
+npx tsx src/cli/index.ts prune-missing            # Drop DB rows whose files are gone
+npx tsx src/cli/index.ts purge-staged-jpg-rows    # Drop DB rows under .staged-jpgs/ after manual rm
 ```
 
 ## Tests
@@ -209,6 +233,30 @@ docker compose down           # Stop
 
 **Ports:** Host :80 → Container :3000 (web), :8200 (DLNA), :1900/udp (SSDP)
 
+## Dev Deployment (in Docker)
+
+API runs in a container with the project source bind-mounted; tsx watch picks up
+edits live. Angular ng serve stays on the host (port 4200) and proxies `/api`
++ `/health` to the container via `web/src/proxy.conf.json`.
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --build
+cd web && npm start                                      # ng serve on :4200
+docker compose -f docker-compose.dev.yml logs -f api
+docker compose -f docker-compose.dev.yml exec api bash   # shell into container
+docker compose -f docker-compose.dev.yml down
+```
+
+The dev compose bind-mounts `./` to `/app` with an anonymous volume for
+`/app/node_modules` (so the image's linux-built native modules aren't shadowed
+by a host-built `./node_modules`). The NAS path is hardcoded to
+`/mnt/robert/photos`; update the volume mapping if your fstab mount lives
+elsewhere.
+
+**Saving any backend file restarts the API** via tsx watch — kills any
+in-progress face/thumbnail/embedding scan. Frontend edits are independent
+because ng serve runs on the host.
+
 ## Security
 
 - Local network guard: rejects non-private IPs by default
@@ -223,11 +271,35 @@ docker compose down           # Stop
 
 - Two-stage delete with **30-day retention** (configurable via Settings UI or `PM_TRASH_RETENTION_DAYS` env)
 - Storage: `{mediaRoot}/.trash/{YYYY-MM}/{hash}{ext}` — same volume as live photos so `rename()` is atomic and zero extra disk during retention
-- Schema: `photos.deleted_at`, `photos.trash_path`, `photos.original_path` (migration 010)
+- Schema: `photos.deleted_at`, `photos.trash_path`, `photos.original_path` (migration 010); `photos.trash_reason` enum 'user' | 'jpg-redundant' (migration 014) lets the redundant-JPG cleanup workflow trash without retention
 - Auto-purge runs at the start of each daily cron, `unlink`s expired files + thumbnails, removes DB rows
 - Walker auto-skips `.trash` because it's a dot-prefixed directory
-- UI: Selection bar Delete + lightbox trash icon use the **undo toast** pattern; `/trash` route shows the soft-deleted grid with per-item Restore + Delete forever, plus Empty/Restore-all toolbar
+- UI: Selection bar Delete + lightbox trash icon use the **undo toast** pattern; `/trash` route shows the soft-deleted grid with per-item Restore + Delete forever, plus Empty/Restore-all toolbar. **Bulk Restore** via ctrl/shift+click multi-select on `/trash` calls `POST /api/photos/restore` and triggers a grid refresh
 - Sidebar shows trash count badge, refreshed on bulk action and on every navigation
+
+## Triage views (default-hidden)
+
+Two views are wired into the sidebar but hidden by default. Operators opt in from
+**Settings → Navigation**: `show_screenshots_nav` and `show_no_people_nav`. Both
+pages keep an empty grid until the user clicks **Scan** — explicit gating so the
+heavy DB query doesn't fire on every navigation.
+
+- **`/screenshots` — Memes & Screenshots.** Heuristic-scored candidates summed
+  from: no EXIF camera (+2), no GPS (+1), `file_size < 500 KB` (+1), square or
+  4:3 aspect ratio (+2/+1), and known phone-screenshot resolutions like
+  1284×2778, 1080×2400, 828×1792 (+3). Adjustable `min_score` slider (default
+  5). Multi-select with shift+click range; selection bar's standard Delete
+  trashes them. The score itself is exposed via the `meme_score` column so the
+  UI can show confidence on each thumbnail.
+- **`/no-people` — Photos without People.** Active photos that have a
+  `face_scan_status` row (i.e., were scanned) but **zero** rows in `faces`.
+  Useful for triaging non-people shots after the face sweep. Caveat: face-api's
+  SSD MobileNet at default 0.5 confidence misses profiles, small/distant faces,
+  and back-of-head shots — so this view contains some photos with people the
+  detector missed. It's "no detected faces", not "no people".
+
+Both queries live in `PhotoRepository.getScreenshotCandidates(...)` and
+`PhotoRepository.getPhotosWithoutPeople(...)`.
 
 ## Phone Upload
 
@@ -275,10 +347,11 @@ The daily cron (default 2 AM, `PM_CRON_HOUR`) runs in this order:
 
 1. **Trash auto-purge** — `unlink` files + thumbs older than retention; remove DB rows
 2. **Re-index** — incremental walk, mtime-based skip; new files indexed in batches
-3. **Thumbnail backfill** — up to 200 missing thumbnails generated
-4. **Perceptual hash backfill** — up to 500 missing dHashes computed
-5. **Face scan (worker)** — 50-photo batch; clusters faces if any new found
-6. **Visual embeddings** — 100-photo batch (MobileNet v2)
+3. **Thumbnail reconcile** — `thumbnail_path` set in DB but file missing on disk → set NULL (self-heals DB↔disk drift). Runs before the backfill below so freshly-NULLed rows get regenerated in the same nightly run
+4. **Thumbnail backfill** — up to 200 missing thumbnails generated
+5. **Perceptual hash backfill** — up to 500 missing dHashes computed
+6. **Face scan (worker)** — 50-photo batch; clusters faces if any new found
+7. **Visual embeddings** — 100-photo batch (MobileNet v2)
 
 Manual triggers (Settings page, all cancellable):
 - "Generate thumbnails" — full sweep of missing thumbs

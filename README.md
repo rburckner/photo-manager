@@ -18,10 +18,12 @@ Built for a collection of ~120k photos/videos (672GB) on a NAS, served via Docke
 - **Visual Similarity** — MobileNet embeddings find photos that look alike
 - **Near-Duplicates** — Perceptual hashing (dHash) groups visually-similar photos (resizes, recompresses, etc.)
 - **Face Detection** — `@vladmandic/face-api` + tfjs-node C++ backend, DBSCAN clustering, runs in a worker thread
-- **Trash + Undo** — 30-day soft delete with undo toast, configurable retention
+- **Trash + Undo** — 30-day soft delete with undo toast, configurable retention; bulk Restore on `/trash` via shift+click range select
 - **Multi-select** — Ctrl+click, Shift+range in every view
 - **Bulk Actions** — Favorite, hide, export zip, set date, add to album
 - **Hidden Photos** — Keep files on disk but hide from all views
+- **Memes & Screenshots view** — Heuristic-scored candidates (EXIF, GPS, dimensions, file size); default-hidden, opt in from Settings
+- **Photos without People** — Face-scanned photos with zero detected faces, for quick non-people triage; default-hidden, opt in from Settings
 - **Fix Dates** — Drag-and-drop photos onto month/year grid
 - **Duplicate Detection** — Find files with same hash
 - **Photo Rotate** — Rotate thumbnails from the lightbox
@@ -64,6 +66,17 @@ cd web && npx ng serve
 
 Open http://localhost:4200
 
+#### Dev in Docker (alternative)
+
+Run the API in a container with bind-mounted source so native modules (sharp, better-sqlite3, tfjs-node) match production exactly. Angular still runs on the host with `/api` proxied to the container.
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --build
+cd web && npm start              # ng serve on :4200
+```
+
+The dev compose mounts `./` into `/app`, with an anonymous volume preserving `/app/node_modules` from the image. The NAS bind-mount path is hardcoded to `/mnt/robert/photos`; edit `docker-compose.dev.yml` for your setup.
+
 ### Docker (Production)
 
 ```bash
@@ -91,6 +104,8 @@ npx tsx src/cli/index.ts migrate               # Run DB migrations
 npx tsx src/cli/index.ts ingest                # Process inbox directory
 npx tsx src/cli/index.ts import-takeout <path> # Import Google Takeout
 npx tsx src/cli/index.ts pair                  # Generate device pairing code
+npx tsx src/cli/index.ts reconcile-thumbnails  # NULL thumbnail_path for missing files
+                                               #   (use --dry-run for a count first)
 ```
 
 ## Architecture
