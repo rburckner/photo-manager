@@ -41,7 +41,7 @@ Self-hosted photo management system for ~120k family photos/videos (672GB) on a 
 
 ## Tech Stack
 
-- **Runtime:** Node.js **22 LTS** (use nvm; tfjs-node native bindings lag the latest Node — Node 24 has no working ABI), TypeScript strict mode, ESM
+- **Runtime:** Node.js **22 LTS** (pinned in `.nvmrc` — run `nvm use`; `engines` is `^22.0.0`; tfjs-node native bindings lag the latest Node — Node 24 has no working ABI), TypeScript strict mode, ESM
 - **Backend:** Fastify 5, better-sqlite3 (WAL mode)
 - **Frontend:** Angular 21, signal-based state, standalone components, lazy-loaded routes
 - **Images:** sharp (with native libheif for HEIC/HEIF decode), exif-reader. On-demand HEIC→JPEG transcode in the file-serve route handles browsers that don't render HEIC natively (Chrome/Firefox/Edge); Safari gets the original
