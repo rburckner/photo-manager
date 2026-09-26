@@ -43,6 +43,9 @@ Built for a collection of ~120k photos/videos (672GB) on a NAS, served via Docke
 ### Development
 
 ```bash
+# Use the pinned Node version (22 LTS, from .nvmrc)
+nvm install && nvm use
+
 # Install dependencies
 npm install
 cd web && npm install && cd ..
